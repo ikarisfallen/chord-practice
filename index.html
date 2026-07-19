@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Chord Practice</title>
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- PWA / offline install -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0f141a">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Chords">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Chord Practice</h1>
+    <div class="mode-toggle" role="tablist" aria-label="Mode">
+      <button class="mode-btn" data-mode="triads" role="tab">Triads</button>
+      <button class="mode-btn" data-mode="chords" role="tab">Chords</button>
+    </div>
+    <nav class="view-nav">
+      <button class="nav-btn" data-view="practice">Practice</button>
+      <button class="nav-btn" data-view="stats">Stats</button>
+      <button class="nav-btn" data-view="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- PRACTICE -->
+    <section id="view-practice" class="view">
+      <div id="practice-card" class="card practice-card">
+        <div class="prompt-quality" id="prompt-quality">—</div>
+        <div class="prompt-root" id="prompt-root">—</div>
+        <div class="prompt-ask" id="prompt-ask">Name the note</div>
+
+        <form id="answer-form" autocomplete="off">
+          <input id="answer-input" type="text" inputmode="text"
+                 placeholder="e.g. Eb, f#, g" aria-label="Your answer" spellcheck="false" />
+          <button id="submit-btn" type="submit">Check</button>
+        </form>
+
+        <div id="note-keys" class="note-keys" aria-label="Note keys"></div>
+
+        <div id="feedback" class="feedback" aria-live="polite"></div>
+
+        <div class="practice-meta">
+          <span id="meta-level" class="pill"></span>
+          <span id="meta-streak" class="pill"></span>
+          <button id="skip-btn" type="button" class="link-btn">Show answer</button>
+        </div>
+      </div>
+      <p id="empty-pool" class="empty-note hidden">
+        No degrees selected. Open <strong>Settings</strong> and pick at least one.
+      </p>
+    </section>
+
+    <!-- STATS -->
+    <section id="view-stats" class="view hidden">
+      <div class="stat-cards" id="stat-cards"></div>
+      <h2>Accuracy by degree</h2>
+      <div id="stat-by-degree" class="stat-table-wrap"></div>
+      <h2>Accuracy by quality</h2>
+      <div id="stat-by-quality" class="stat-table-wrap"></div>
+      <h2>Heatmap — root × degree <small id="heatmap-mode-label"></small></h2>
+      <p class="muted">Cell = accuracy. Number = attempts. Border thickness ≈ mastery level. Gray = not yet seen.</p>
+      <div id="stat-heatmaps"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="view hidden">
+      <div class="card">
+        <h2>Degrees to test <small id="settings-mode-label"></small></h2>
+        <p class="muted">Which scale degree(s) should I quiz you on for the current mode?
+          Degrees 3/5/7 are chord tones; 2/4/6 come from the chord's parent scale.</p>
+        <div id="degree-checkboxes" class="checkbox-row"></div>
+      </div>
+
+      <div class="card">
+        <h2>Answer checking</h2>
+        <label class="switch-row">
+          <input type="checkbox" id="accept-enharmonic">
+          <span>Accept enharmonic equivalents (e.g. D♯ typed as E♭) as correct, but nudge me toward the right spelling.</span>
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Progress</h2>
+        <p class="muted">Everything (preferences, spaced-repetition schedule, and stats) is stored locally
+          in this browser/device — no account, works offline. Export a backup file to keep a copy or move
+          it to another device.</p>
+        <div class="btn-row">
+          <button id="export-btn" type="button" class="ghost-btn">Export backup</button>
+          <button id="import-btn" type="button" class="ghost-btn">Import backup</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
+        </div>
+        <p id="backup-msg" class="muted backup-msg"></p>
+        <button id="reset-btn" type="button" class="danger-btn">Reset all progress &amp; stats</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

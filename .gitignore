@@ -1,0 +1,10 @@
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Exported stat backups
+chord-practice-backup-*.json
