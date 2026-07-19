@@ -48,6 +48,19 @@ online.
 ### Modes & qualities
 - **Triads** — major, minor
 - **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5)
+- **Changes** — voice-leading through four random 7th chords (see below)
+
+### Changes mode
+Each round presents four random 7th chords in a **consistent** notation style
+(unlike Chords mode, which varies notation per chord — a Changes progression reads
+like one chart). You're given a starting chord tone (root/3rd/5th/7th) and a
+direction (ascending or descending), both randomized each round. Enter, for each
+chord, the chord tone nearest in that direction to your previous note — building a
+voice-leading line. e.g. **Dm7 G7 Cmaj7 A7**, start on the 3rd descending →
+**F D C A** (each note is the closest 1/3/5/7 of the next chord below the last).
+This mirrors the "Chord Tones" exercises in the companion *song-practice* app. Miss
+a note and it reveals the correct one and continues; you get a score out of 4 at the
+end. Changes accuracy is tracked separately in Stats.
 
 ### Degrees
 You pick which scale degree(s) to be quizzed on (Settings). Triads offer 2–5,

@@ -91,6 +91,25 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
 .prompt-root { font-size: clamp(2.4rem, 9vw, 3.6rem); font-weight: 800; margin: 4px 0 2px; font-family: var(--mono); }
 .prompt-ask { font-size: 1.1rem; color: var(--muted); margin-bottom: 20px; }
 
+/* Changes mode */
+.changes-instruction { color: var(--muted); font-weight: 600; margin-bottom: 14px; }
+.changes-instruction strong { color: var(--accent); }
+.changes-strip { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+.changes-cell {
+  flex: 1 1 0; min-width: 60px; max-width: 130px;
+  border: 1px solid var(--border); border-radius: 12px; padding: 10px 4px 8px;
+  background: var(--surface-2); text-align: center;
+}
+.changes-cell.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+.changes-cell .cc-chord { font-family: var(--mono); font-weight: 700; font-size: clamp(.9rem, 3.6vw, 1.15rem); }
+.changes-cell .cc-note {
+  font-family: var(--mono); font-size: 1.5rem; font-weight: 800; margin-top: 6px; min-height: 1.4em;
+  color: var(--muted);
+}
+.changes-cell .cc-note.correct { color: var(--good); }
+.changes-cell .cc-note.wrong { color: var(--bad); }
+.changes-cell .cc-note.pending { color: var(--border); }
+
 #answer-form { display: flex; gap: 10px; justify-content: center; max-width: 380px; margin: 0 auto; }
 #answer-input {
   flex: 1;

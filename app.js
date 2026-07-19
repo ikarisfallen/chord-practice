@@ -144,6 +144,7 @@ const DEFAULT_STATE = () => ({
   },
   tick: 0,
   items: {}, // key "root|quality|degree" -> item state
+  changes: { notesAttempted: 0, notesCorrect: 0, rounds: 0 },
 });
 
 let state = load();
@@ -158,6 +159,7 @@ function load() {
       prefs: Object.assign(base.prefs, parsed.prefs || {}),
       tick: parsed.tick || 0,
       items: parsed.items || {},
+      changes: Object.assign(base.changes, parsed.changes || {}),
     };
   } catch (e) {
     console.warn('Could not load saved state, starting fresh.', e);
@@ -307,6 +309,11 @@ const el = {
   skip: $('#skip-btn'),
   emptyPool: $('#empty-pool'),
   noteKeys: $('#note-keys'),
+  singlePrompt: $('#single-prompt'),
+  changesPrompt: $('#changes-prompt'),
+  changesInstruction: $('#changes-instruction'),
+  changesStrip: $('#changes-strip'),
+  metaRow: $('.practice-meta'),
 };
 
 let current = null;         // current pool entry
@@ -369,10 +376,20 @@ function noteKeyButton(k) {
   return b;
 }
 
+// The chord whose key signature governs enharmonic key spelling right now:
+// the current single-mode item, or the current chord of a Changes line.
+function activeChordForKeys() {
+  if (state.prefs.mode === 'changes') {
+    return changesRound ? changesRound.chords[changesRound.idx] : null;
+  }
+  return current;
+}
+
 // Resolve which note string a key fills (enharmonic keys pick by key signature).
 function keyNote(btn) {
   if (btn.dataset.note) return btn.dataset.note;
-  return accidentalPreference(current) === 'flat' ? btn.dataset.flat : btn.dataset.sharp;
+  const ctx = activeChordForKeys();
+  return ctx && accidentalPreference(ctx) === 'flat' ? btn.dataset.flat : btn.dataset.sharp;
 }
 
 function buildNoteKeys() {
@@ -390,7 +407,7 @@ function buildNoteKeys() {
   });
   el.noteKeys.addEventListener('click', (e) => {
     const btn = e.target.closest('.nkey');
-    if (!btn || phase !== 'awaiting' || !current) return;
+    if (!btn || phase !== 'awaiting' || !activeChordForKeys()) return;
     el.input.value = keyNote(btn);
     el.input.classList.remove('correct', 'wrong');
     updateKeySelection();
@@ -407,6 +424,174 @@ function updateKeySelection() {
     b.classList.toggle('sel', pc !== null && Number(b.dataset.pc) === pc));
 }
 
+/* =========================================================================
+ * CHANGES MODE — voice-lead a line of chord tones through 4 random 7th chords.
+ * Matches song-practice's Chord Tones exercise: each next note is the nearest
+ * chord tone strictly in the chosen direction (up/down) from the previous note.
+ * ========================================================================= */
+
+const CHORD_QUALITIES = MODE_QUALITIES.chords; // maj7, dom7, min7, halfdim
+
+// Consistent notation within one progression (unlike Chords mode, which
+// randomizes per chord). Each scheme spells every quality in one house style.
+const NOTATION_SCHEMES = [
+  { maj7: 'maj7', dom7: '7', min7: 'm7',   halfdim: 'm7♭5' },
+  { maj7: 'Maj7', dom7: '7', min7: 'min7', halfdim: 'min7♭5' },
+  { maj7: '△7',   dom7: '7', min7: '-7',   halfdim: 'ø7' },
+  { maj7: 'M7',   dom7: '7', min7: 'm7',   halfdim: 'ø7' },
+];
+
+const rand = (n) => Math.floor(Math.random() * n);
+const pickRand = (arr) => arr[rand(arr.length)];
+const START_LABEL = { 1: 'root', 3: '3rd', 5: '5th', 7: '7th' };
+
+let changesRound = null;
+
+function chordToneList(chord) {
+  return [1, 3, 5, 7].map((d) => {
+    const s = spell(chord.root, chord.quality, d);
+    return { degree: d, pc: s.pc, letter: s.letter, acc: s.acc, text: s.text, display: s.display };
+  });
+}
+
+// Nearest chord tone strictly in `direction` (+1 up / -1 down) from prevPitch.
+function nearestInDirection(prevPitch, direction, tones) {
+  const LOW = 24, HIGH = 96;
+  const all = [];
+  for (const t of tones) {
+    for (let p = LOW; p <= HIGH; p++) {
+      if ((((p % 12) + 12) % 12) === t.pc) all.push(Object.assign({}, t, { pitch: p }));
+    }
+  }
+  all.sort((a, b) => a.pitch - b.pitch);
+  if (direction > 0) { for (const c of all) if (c.pitch > prevPitch) return c; }
+  else { for (let i = all.length - 1; i >= 0; i--) if (all[i].pitch < prevPitch) return all[i]; }
+  // Ran out of range in that direction: fall back to the absolute closest.
+  return all.reduce((best, c) =>
+    Math.abs(c.pitch - prevPitch) < Math.abs(best.pitch - prevPitch) ? c : best, all[0]);
+}
+
+function generateChangesLine(chords, startDegree, direction) {
+  const firstTones = chordToneList(chords[0]);
+  const start = firstTones.find((t) => t.degree === startDegree) || firstTones[0];
+  let prevPitch = 60 + start.pc; // seat the start note in a middle octave (60..71)
+  const targets = [Object.assign({}, start, { pitch: prevPitch })];
+  for (let i = 1; i < chords.length; i++) {
+    const tone = nearestInDirection(prevPitch, direction, chordToneList(chords[i]));
+    prevPitch = tone.pitch;
+    targets.push(tone);
+  }
+  return targets;
+}
+
+function newChangesRound() {
+  const scheme = pickRand(NOTATION_SCHEMES);
+  const chords = [];
+  for (let i = 0; i < 4; i++) {
+    let root, quality;
+    do {
+      root = pickRand(ROOTS);
+      quality = pickRand(CHORD_QUALITIES);
+    } while (i > 0 && root === chords[i - 1].root && quality === chords[i - 1].quality);
+    chords.push({ root, quality, symbol: root.name + scheme[quality] });
+  }
+  const startDegree = pickRand([1, 3, 5, 7]);
+  const direction = pickRand([1, -1]);
+  changesRound = {
+    chords, startDegree, direction,
+    targets: generateChangesLine(chords, startDegree, direction),
+    idx: 0, results: [],
+  };
+}
+
+function renderChangesPrompt() {
+  const r = changesRound;
+  const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
+  el.changesInstruction.innerHTML =
+    `Start on the <strong>${START_LABEL[r.startDegree]}</strong> — <strong>${dir}</strong>. ` +
+    `Enter a chord tone of each chord.`;
+  el.changesStrip.innerHTML = '';
+  r.chords.forEach((c, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'changes-cell' + (i === r.idx ? ' current' : '');
+    let note;
+    if (i < r.idx) {
+      const res = r.results[i];
+      note = `<div class="cc-note ${res.correct ? 'correct' : 'wrong'}" ` +
+             `title="${res.correct ? '' : 'you entered ' + res.typed}">${r.targets[i].display}</div>`;
+    } else {
+      note = `<div class="cc-note pending">•</div>`;
+    }
+    cell.innerHTML = `<div class="cc-chord">${c.symbol}</div>${note}`;
+    el.changesStrip.appendChild(cell);
+  });
+}
+
+function startChangesQuestion() {
+  newChangesRound();
+  phase = 'awaiting';
+  el.singlePrompt.classList.add('hidden');
+  el.changesPrompt.classList.remove('hidden');
+  el.metaRow.classList.add('hidden');
+  el.feedback.textContent = '';
+  el.input.value = '';
+  el.input.className = '';
+  el.input.readOnly = false;
+  el.submit.textContent = 'Check';
+  el.noteKeys.classList.remove('disabled');
+  renderChangesPrompt();
+  updateKeySelection();
+  focusInput();
+}
+
+function submitChangesNote() {
+  const r = changesRound;
+  const parsed = parseAnswer(el.input.value);
+  if (!parsed) return;
+  if (parsed.invalid) {
+    el.feedback.innerHTML = `<div class="verdict bad">Couldn't read that. Try like "Eb", "f#", or "g".</div>`;
+    return;
+  }
+  const target = r.targets[r.idx];
+  const exact = parsed.letter === target.letter && parsed.acc === target.acc;
+  const correct = exact || (state.prefs.acceptEnharmonic && parsed.pc === target.pc);
+  r.results[r.idx] = { correct, typed: parsed.letter + accToText(parsed.acc, true) };
+  state.changes.notesAttempted += 1;
+  if (correct) state.changes.notesCorrect += 1;
+  r.idx += 1;
+  el.input.value = '';
+  el.input.className = '';
+
+  if (r.idx < r.chords.length) {
+    renderChangesPrompt();
+    updateKeySelection();
+    focusInput();
+    save();
+  } else {
+    state.changes.rounds += 1;
+    finishChangesRound();
+    save();
+  }
+}
+
+function finishChangesRound() {
+  const r = changesRound;
+  renderChangesPrompt();
+  const correctCount = r.results.filter((x) => x.correct).length;
+  const line = r.targets
+    .map((t, i) => `<span class="verdict ${r.results[i].correct ? 'good' : 'bad'}">${t.display}</span>`)
+    .join('  ');
+  el.feedback.innerHTML =
+    `<div class="verdict ${correctCount === r.chords.length ? 'good' : 'note'}">${correctCount}/${r.chords.length} correct</div>` +
+    `<div class="chord-tones">Line:  ${line}</div>` +
+    `<div class="next-hint">Press Enter for a new progression</div>`;
+  el.input.readOnly = true;
+  el.submit.textContent = 'Next ↵';
+  el.noteKeys.classList.add('disabled');
+  phase = 'feedback';
+  focusInput();
+}
+
 function chordName(entry) {
   return `${entry.root.name} ${QUALITIES[entry.quality].label}`;
 }
@@ -418,8 +603,18 @@ function chordTonesText(entry) {
 }
 
 function nextQuestion() {
+  if (state.prefs.mode === 'changes') {
+    el.practiceCard.classList.remove('hidden');
+    el.emptyPool.classList.add('hidden');
+    startChangesQuestion();
+    return;
+  }
+
   current = selectNext();
   phase = 'awaiting';
+  el.singlePrompt.classList.remove('hidden');
+  el.changesPrompt.classList.add('hidden');
+  el.metaRow.classList.remove('hidden');
   el.feedback.textContent = '';
   el.input.value = '';
   el.input.className = '';
@@ -496,8 +691,9 @@ function submitAnswer() {
 
 el.form.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (phase === 'awaiting') submitAnswer();
-  else nextQuestion();
+  if (phase !== 'awaiting') { nextQuestion(); return; }
+  if (state.prefs.mode === 'changes') submitChangesNote();
+  else submitAnswer();
 });
 
 el.skip.addEventListener('click', () => {
@@ -536,6 +732,12 @@ document.querySelectorAll('.mode-btn').forEach(b =>
 
 function renderSettings() {
   const mode = state.prefs.mode;
+  const isChanges = mode === 'changes';
+  $('#degrees-card').classList.toggle('hidden', isChanges);
+  $('#changes-card').classList.toggle('hidden', !isChanges);
+  $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
+  if (isChanges) return;
+
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
   const box = $('#degree-checkboxes');
@@ -616,6 +818,7 @@ $('#import-file').addEventListener('change', (e) => {
         prefs: Object.assign(base.prefs, incoming.prefs || {}),
         tick: incoming.tick || 0,
         items: incoming.items || {},
+        changes: Object.assign(base.changes, incoming.changes || {}),
       };
       save();
       syncModeButtons();
@@ -657,13 +860,26 @@ function renderStats() {
     ${statCard(mastered, 'mastered')}
     ${statCard(seen, 'combos seen')}`;
 
+  renderChangesStats();
+
   renderBreakdown('#stat-by-degree', 'Degree', it => ordinal(it.degree),
     d => DEGREE_PRIORITY.indexOf(Number(d.replace(/\D/g, ''))));
   renderBreakdown('#stat-by-quality', 'Quality', it => QUALITIES[it.quality].label,
     label => Object.values(QUALITIES).findIndex(q => q.label === label));
 
-  renderHeatmaps();
-  $('#heatmap-mode-label').textContent = `(${state.prefs.mode})`;
+  const hmMode = state.prefs.mode === 'changes' ? 'chords' : state.prefs.mode;
+  renderHeatmaps(hmMode);
+  $('#heatmap-mode-label').textContent = `(${hmMode})`;
+}
+
+function renderChangesStats() {
+  const c = state.changes || {};
+  const box = $('#stat-changes');
+  if (!c.notesAttempted) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="stat-cards">
+    ${statCard(c.rounds, 'changes rounds')}
+    ${statCard(pct(c.notesCorrect, c.notesAttempted) + '%', 'changes accuracy')}
+    ${statCard(c.notesCorrect + '/' + c.notesAttempted, 'changes notes')}</div>`;
 }
 
 function statCard(big, lbl) {
@@ -696,9 +912,9 @@ function renderBreakdown(sel, colName, keyFn, sortFn) {
     <th>${colName}</th><th>Correct</th><th>Accuracy</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function renderHeatmaps() {
-  const mode = state.prefs.mode;
-  const degrees = currentDegrees().slice().sort((a, b) => a - b);
+function renderHeatmaps(mode) {
+  const degrees = (mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees)
+    .slice().sort((a, b) => a - b);
   const container = $('#stat-heatmaps');
   container.innerHTML = '';
   for (const q of MODE_QUALITIES[mode]) {

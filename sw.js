@@ -1,7 +1,7 @@
 /* Service worker: precache the app shell so it runs fully offline.
  * Bump CACHE whenever you change index.html / styles.css / app.js so phones
  * pick up the new version on next online launch. */
-const CACHE = 'chord-practice-v1';
+const CACHE = 'chord-practice-v2';
 const ASSETS = [
   './',
   './index.html',

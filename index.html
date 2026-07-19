@@ -21,6 +21,7 @@
     <div class="mode-toggle" role="tablist" aria-label="Mode">
       <button class="mode-btn" data-mode="triads" role="tab">Triads</button>
       <button class="mode-btn" data-mode="chords" role="tab">Chords</button>
+      <button class="mode-btn" data-mode="changes" role="tab">Changes</button>
     </div>
     <nav class="view-nav">
       <button class="nav-btn" data-view="practice">Practice</button>
@@ -33,9 +34,16 @@
     <!-- PRACTICE -->
     <section id="view-practice" class="view">
       <div id="practice-card" class="card practice-card">
-        <div class="prompt-quality" id="prompt-quality">—</div>
-        <div class="prompt-root" id="prompt-root">—</div>
-        <div class="prompt-ask" id="prompt-ask">Name the note</div>
+        <div id="single-prompt">
+          <div class="prompt-quality" id="prompt-quality">—</div>
+          <div class="prompt-root" id="prompt-root">—</div>
+          <div class="prompt-ask" id="prompt-ask">Name the note</div>
+        </div>
+
+        <div id="changes-prompt" class="hidden">
+          <div class="changes-instruction" id="changes-instruction"></div>
+          <div class="changes-strip" id="changes-strip"></div>
+        </div>
 
         <form id="answer-form" autocomplete="off">
           <input id="answer-input" type="text" inputmode="text"
@@ -61,6 +69,7 @@
     <!-- STATS -->
     <section id="view-stats" class="view hidden">
       <div class="stat-cards" id="stat-cards"></div>
+      <div id="stat-changes"></div>
       <h2>Accuracy by degree</h2>
       <div id="stat-by-degree" class="stat-table-wrap"></div>
       <h2>Accuracy by quality</h2>
@@ -72,11 +81,19 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view hidden">
-      <div class="card">
+      <div class="card" id="degrees-card">
         <h2>Degrees to test <small id="settings-mode-label"></small></h2>
         <p class="muted">Which scale degree(s) should I quiz you on for the current mode?
           Degrees 3/5/7 are chord tones; 2/4/6 come from the chord's parent scale.</p>
         <div id="degree-checkboxes" class="checkbox-row"></div>
+      </div>
+
+      <div class="card hidden" id="changes-card">
+        <h2>Changes</h2>
+        <p class="muted">Each round gives you four random 7th chords in a consistent notation style.
+          You're told a starting chord tone (root/3rd/5th/7th) and a direction; enter the chord tone of
+          each chord that's nearest in that direction to your previous note — a voice-leading line.
+          Start note and direction are randomized every round.</p>
       </div>
 
       <div class="card">
