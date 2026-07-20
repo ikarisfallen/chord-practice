@@ -517,8 +517,13 @@ function renderChangesPrompt() {
     let note;
     if (i < r.idx) {
       const res = r.results[i];
-      note = `<div class="cc-note ${res.correct ? 'correct' : 'wrong'}" ` +
-             `title="${res.correct ? '' : 'you entered ' + res.typed}">${r.targets[i].display}</div>`;
+      if (res.correct) {
+        note = `<div class="cc-note correct">${r.targets[i].display}</div>`;
+      } else {
+        // Show what was played (struck) and the correct note, so a miss is clear.
+        note = `<div class="cc-note wrong">${r.targets[i].display}</div>` +
+               `<div class="cc-typed">you: ${res.typed}</div>`;
+      }
     } else {
       note = `<div class="cc-note pending">•</div>`;
     }

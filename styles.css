@@ -109,6 +109,10 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
 .changes-cell .cc-note.correct { color: var(--good); }
 .changes-cell .cc-note.wrong { color: var(--bad); }
 .changes-cell .cc-note.pending { color: var(--border); }
+.changes-cell .cc-typed {
+  font-family: var(--mono); font-size: .72rem; color: var(--bad);
+  text-decoration: line-through; margin-top: 2px;
+}
 
 #answer-form { display: flex; gap: 10px; justify-content: center; max-width: 380px; margin: 0 auto; }
 #answer-input {
