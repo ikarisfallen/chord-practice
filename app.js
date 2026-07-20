@@ -558,6 +558,12 @@ function submitChangesNote() {
   r.results[r.idx] = { correct, typed: parsed.letter + accToText(parsed.acc, true) };
   state.changes.notesAttempted += 1;
   if (correct) state.changes.notesCorrect += 1;
+  // Feed the same per-(root, quality, degree) stats the other modes use so the
+  // Stats page reflects Changes too (attempts/accuracy only; scheduling untouched).
+  const cur = r.chords[r.idx];
+  const it = getItem(cur.root.name, cur.quality, target.degree);
+  it.attempts += 1;
+  if (correct) it.correct += 1;
   r.idx += 1;
   el.input.value = '';
   el.input.className = '';
@@ -867,9 +873,8 @@ function renderStats() {
   renderBreakdown('#stat-by-quality', 'Quality', it => QUALITIES[it.quality].label,
     label => Object.values(QUALITIES).findIndex(q => q.label === label));
 
-  const hmMode = state.prefs.mode === 'changes' ? 'chords' : state.prefs.mode;
-  renderHeatmaps(hmMode);
-  $('#heatmap-mode-label').textContent = `(${hmMode})`;
+  renderHeatmaps();
+  $('#heatmap-mode-label').textContent = '(all modes)';
 }
 
 function renderChangesStats() {
@@ -912,12 +917,19 @@ function renderBreakdown(sel, colName, keyFn, sortFn) {
     <th>${colName}</th><th>Correct</th><th>Accuracy</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-function renderHeatmaps(mode) {
-  const degrees = (mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees)
-    .slice().sort((a, b) => a - b);
+// All degrees a quality can show, independent of the current Settings selection.
+// Triads are tested on 2-5; 7th chords on 2-7 plus the root (1) from Changes.
+function heatmapDegrees(q) {
+  return QUALITIES[q].mode === 'triads' ? DEGREE_OPTIONS.triads : [1, ...DEGREE_OPTIONS.chords];
+}
+
+// One heatmap per quality (all of them), every applicable degree, all roots —
+// so the Stats page is a single shared picture across Triads, Chords & Changes.
+function renderHeatmaps() {
   const container = $('#stat-heatmaps');
   container.innerHTML = '';
-  for (const q of MODE_QUALITIES[mode]) {
+  for (const q of Object.keys(QUALITIES)) {
+    const degrees = heatmapDegrees(q);
     let head = '<tr><th></th>' + degrees.map(d => `<th>${ordinal(d)}</th>`).join('') + '</tr>';
     let body = '';
     for (const root of ROOTS) {

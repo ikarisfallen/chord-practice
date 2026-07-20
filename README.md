@@ -60,7 +60,8 @@ voice-leading line. e.g. **Dm7 G7 Cmaj7 A7**, start on the 3rd descending →
 **F D C A** (each note is the closest 1/3/5/7 of the next chord below the last).
 This mirrors the "Chord Tones" exercises in the companion *song-practice* app. Miss
 a note and it reveals the correct one and continues; you get a score out of 4 at the
-end. Changes accuracy is tracked separately in Stats.
+end. Each Changes note also feeds the shared per-(root, quality, degree) stats, so
+the Stats page reflects Triads, Chords, and Changes together.
 
 ### Degrees
 You pick which scale degree(s) to be quizzed on (Settings). Triads offer 2–5,
