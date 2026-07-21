@@ -487,13 +487,16 @@ function generateChangesLine(chords, startDegree, direction) {
 }
 
 // Named progressions, as [scale degree, chord quality] within a major/minor key.
+// All are four chords (descending-fourths cycles). Keys are kept stable across
+// versions so saved preferences don't break.
 const PROGRESSIONS = {
-  majoriiVI: { label: 'Major ii-V-I', key: 'major', degrees: [[2, 'min7'], [5, 'dom7'], [1, 'maj7']] },
-  minoriiVi: { label: 'Minor ii-V-i', key: 'minor', degrees: [[2, 'halfdim'], [5, 'dom7'], [1, 'min7']] },
-  IviiiV:    { label: 'I-vi-ii-V',    key: 'major', degrees: [[1, 'maj7'], [6, 'min7'], [2, 'min7'], [5, 'dom7']] },
+  majoriiVI: { label: 'Major 2-5-1-4', key: 'major', degrees: [[2, 'min7'], [5, 'dom7'], [1, 'maj7'], [4, 'maj7']] },
+  minoriiVi: { label: 'Minor 2-5-1-4', key: 'minor', degrees: [[2, 'halfdim'], [5, 'dom7'], [1, 'min7'], [4, 'min7']] },
+  IviiiV:    { label: '1-6-2-5',       key: 'major', degrees: [[1, 'maj7'], [6, 'min7'], [2, 'min7'], [5, 'dom7']] },
+  p3625:     { label: '3-6-2-5',       key: 'major', degrees: [[3, 'min7'], [6, 'min7'], [2, 'min7'], [5, 'dom7']] },
   random:    { label: 'Random' },
 };
-const PROGRESSION_ORDER = ['majoriiVI', 'minoriiVi', 'IviiiV', 'random'];
+const PROGRESSION_ORDER = ['majoriiVI', 'minoriiVi', 'IviiiV', 'p3625', 'random'];
 // Minor keys spelled without double accidentals (excludes D♭/G♭ minor).
 const MINOR_TONICS = ROOTS.filter(r => r.name !== 'D♭' && r.name !== 'G♭');
 
@@ -526,9 +529,9 @@ function progressionChords(type, scheme) {
 }
 
 function newChangesRound() {
-  const enabled = (state.prefs.changesProgressions && state.prefs.changesProgressions.length)
-    ? state.prefs.changesProgressions : ['random'];
-  const type = pickRand(enabled);
+  const known = new Set(PROGRESSION_ORDER);
+  const enabled = (state.prefs.changesProgressions || []).filter((t) => known.has(t));
+  const type = pickRand(enabled.length ? enabled : ['random']);
   const scheme = pickRand(NOTATION_SCHEMES);
   const chords = type === 'random' ? randomChords(scheme) : progressionChords(type, scheme);
   const startDegree = pickRand([1, 3, 5, 7]);

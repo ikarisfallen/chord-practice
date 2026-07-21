@@ -65,10 +65,12 @@ per-(root, quality, degree) stats, so the Stats page reflects Triads, Chords, an
 Changes together.
 
 **Sequence types** (Settings → Changes) — choose which to draw from; one is picked
-at random each round, and the type isn't shown during practice:
-- **Major ii-V-I** (e.g. Dm7 G7 Cmaj7) and **Minor ii-V-i** (e.g. Dm7♭5 G7 Cm7),
-  in a random key
-- **I-vi-ii-V** (e.g. Cmaj7 Am7 Dm7 G7), in a random key
+at random each round in a random key, and the type isn't shown during practice. All
+are four chords:
+- **Major 2-5-1-4** (ii-V-I-IV, e.g. Dm7 G7 Cmaj7 Fmaj7 — the Autumn Leaves A section)
+- **Minor 2-5-1-4** (iiø-V-i-iv, e.g. Dm7♭5 G7 Cm7 Fm7)
+- **1-6-2-5** (I-vi-ii-V, e.g. Cmaj7 Am7 Dm7 G7)
+- **3-6-2-5** (iii-vi-ii-V descending, e.g. Em7 Am7 Dm7 G7)
 - **Random** — four random 7th chords (the original behavior)
 
 ### Sound
