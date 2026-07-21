@@ -492,11 +492,13 @@ function generateChangesLine(chords, startDegree, direction) {
 const PROGRESSIONS = {
   majoriiVI: { label: 'Major 2-5-1-4', key: 'major', degrees: [[2, 'min7'], [5, 'dom7'], [1, 'maj7'], [4, 'maj7']] },
   minoriiVi: { label: 'Minor 2-5-1-4', key: 'minor', degrees: [[2, 'halfdim'], [5, 'dom7'], [1, 'min7'], [4, 'min7']] },
+  major6251: { label: 'Major 6-2-5-1', key: 'major', degrees: [[6, 'min7'], [2, 'min7'], [5, 'dom7'], [1, 'maj7']] },
+  minor6251: { label: 'Minor 6-2-5-1', key: 'minor', degrees: [[6, 'maj7'], [2, 'halfdim'], [5, 'dom7'], [1, 'min7']] },
   IviiiV:    { label: '1-6-2-5',       key: 'major', degrees: [[1, 'maj7'], [6, 'min7'], [2, 'min7'], [5, 'dom7']] },
   p3625:     { label: '3-6-2-5',       key: 'major', degrees: [[3, 'min7'], [6, 'min7'], [2, 'min7'], [5, 'dom7']] },
   random:    { label: 'Random' },
 };
-const PROGRESSION_ORDER = ['majoriiVI', 'minoriiVi', 'IviiiV', 'p3625', 'random'];
+const PROGRESSION_ORDER = ['majoriiVI', 'minoriiVi', 'major6251', 'minor6251', 'IviiiV', 'p3625', 'random'];
 // Minor keys spelled without double accidentals (excludes D♭/G♭ minor).
 const MINOR_TONICS = ROOTS.filter(r => r.name !== 'D♭' && r.name !== 'G♭');
 

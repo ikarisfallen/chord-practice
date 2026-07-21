@@ -69,6 +69,8 @@ at random each round in a random key, and the type isn't shown during practice. 
 are four chords:
 - **Major 2-5-1-4** (ii-V-I-IV, e.g. Dm7 G7 Cmaj7 Fmaj7 — the Autumn Leaves A section)
 - **Minor 2-5-1-4** (iiø-V-i-iv, e.g. Dm7♭5 G7 Cm7 Fm7)
+- **Major 6-2-5-1** (vi-ii-V-I, e.g. Am7 Dm7 G7 Cmaj7 — resolves to the tonic)
+- **Minor 6-2-5-1** (♭VImaj7-iiø-V-i, e.g. A♭maj7 Dm7♭5 G7 Cm7)
 - **1-6-2-5** (I-vi-ii-V, e.g. Cmaj7 Am7 Dm7 G7)
 - **3-6-2-5** (iii-vi-ii-V descending, e.g. Em7 Am7 Dm7 G7)
 - **Random** — four random 7th chords (the original behavior)
