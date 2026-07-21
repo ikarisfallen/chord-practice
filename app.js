@@ -716,16 +716,16 @@ function playChordAndNote(root, quality, degree) {
   if (!state.prefs.sound) return;
   const ctx = getAudioCtx(); if (!ctx) return;
   const t = ctx.currentTime + 0.03;
-  playChordNotes(ctx, root, quality, t, 1.3);
+  playChordNotes(ctx, root, quality, t, 2.6);
   const melody = chordRootMidi(root) + SCALES[quality][degree - 1] + 12;
-  playTone(ctx, melody, t, 1.5, 0.22);
+  playTone(ctx, melody, t, 3.0, 0.22);
 }
 
 // Changes: the four chords + the four line notes, played as a progression.
 function playChangesLine(r) {
   if (!state.prefs.sound) return;
   const ctx = getAudioCtx(); if (!ctx) return;
-  const beat = 0.62;
+  const beat = 1.24; // half speed — chords held twice as long
   let t = ctx.currentTime + 0.05;
   r.chords.forEach((c, i) => {
     playChordNotes(ctx, c.root, c.quality, t, beat * 0.95);
