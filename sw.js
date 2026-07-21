@@ -1,7 +1,7 @@
 /* Service worker: precache the app shell so it runs fully offline.
  * Bump CACHE whenever you change index.html / styles.css / app.js so phones
  * pick up the new version on next online launch. */
-const CACHE = 'chord-practice-v5';
+const CACHE = 'chord-practice-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,13 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './apple-touch-icon.png',
+  './piano/C3.mp3',
+  './piano/Fs3.mp3',
+  './piano/C4.mp3',
+  './piano/Fs4.mp3',
+  './piano/C5.mp3',
+  './piano/Fs5.mp3',
+  './piano/C6.mp3',
 ];
 
 self.addEventListener('install', (event) => {

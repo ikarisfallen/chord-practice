@@ -66,8 +66,14 @@ the Stats page reflects Triads, Chords, and Changes together.
 ### Sound
 After you answer, the app plays the chord in a low register (left hand) and the
 asked note an octave higher (right hand); in Changes it plays the whole four-chord
-line as a progression. Audio is synthesized with the browser's built-in Web Audio
-API — no libraries, samples, or network — so it works offline. Toggle it in Settings.
+line as a progression. It uses a **sampled acoustic piano** (a small subset of the
+Salamander Grand Piano, resampled for in-between pitches, through a Web Audio
+reverb). The samples are **bundled in `piano/` and played via the Web Audio API —
+no libraries or network — so it works offline**. Toggle it in Settings.
+
+Piano samples: Salamander Grand Piano V3 by Alexander Holm, licensed CC-BY 3.0
+(same set the companion *song-practice* app streams from a CDN; bundled locally
+here for offline use). See `piano/CREDITS.txt`.
 
 ### Degrees
 You pick which scale degree(s) to be quizzed on (Settings). Triads offer 2–5,

@@ -606,42 +606,100 @@ function finishChangesRound() {
 }
 
 /* =========================================================================
- * AUDIO — offline synth playback via the Web Audio API (no libraries, no
- * samples, no network). Plays the chord low (left hand) and the asked note
- * an octave higher (right hand).
+ * AUDIO — offline sampled-piano playback via the Web Audio API. Uses a small
+ * bundled subset of the Salamander Grand Piano (same samples song-practice
+ * uses, but hosted locally so it works offline), resampled for in-between
+ * pitches, through a synthesized reverb. Plays the chord low (left hand) and
+ * the asked note an octave higher (right hand). Falls back to a simple
+ * oscillator only while samples are still decoding.
  * ========================================================================= */
 
 let audioCtx = null, masterGain = null;
+let pianoBuffers = null, pianoLoading = false;
+const PIANO_SAMPLES = [
+  { file: 'C3', midi: 48 }, { file: 'Fs3', midi: 54 }, { file: 'C4', midi: 60 },
+  { file: 'Fs4', midi: 66 }, { file: 'C5', midi: 72 }, { file: 'Fs5', midi: 78 },
+  { file: 'C6', midi: 84 },
+];
+
+// A synthetic room impulse response (exponentially-decaying noise) — no file.
+function makeReverbIR(ctx, seconds, decay) {
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return buf;
+}
 
 function getAudioCtx() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   if (!audioCtx) {
     audioCtx = new AC();
-    const lp = audioCtx.createBiquadFilter();      // soften the triangle a touch
-    lp.type = 'lowpass'; lp.frequency.value = 3800;
+    const comp = audioCtx.createDynamicsCompressor(); // tame stacked-note peaks
+    comp.connect(audioCtx.destination);
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = 0.9;
-    masterGain.connect(lp); lp.connect(audioCtx.destination);
+    masterGain.gain.value = 0.85;
+    masterGain.connect(comp);                          // dry
+    const conv = audioCtx.createConvolver();
+    conv.buffer = makeReverbIR(audioCtx, 2.5, 2.2);    // ~ song-practice's reverb feel
+    const wet = audioCtx.createGain(); wet.gain.value = 0.18;
+    masterGain.connect(conv); conv.connect(wet); wet.connect(comp); // wet
+    loadPiano();
   }
   if (audioCtx.state === 'suspended') audioCtx.resume(); // must run inside a user gesture
   return audioCtx;
 }
 
+async function loadPiano() {
+  if (pianoLoading || pianoBuffers) return;
+  pianoLoading = true;
+  try {
+    pianoBuffers = await Promise.all(PIANO_SAMPLES.map(async (s) => {
+      const ab = await (await fetch(`piano/${s.file}.mp3`)).arrayBuffer();
+      const buffer = await audioCtx.decodeAudioData(ab);
+      return { midi: s.midi, buffer };
+    }));
+  } catch (e) {
+    console.warn('Piano samples failed to load; using fallback tone.', e);
+    pianoBuffers = null;
+  }
+  pianoLoading = false;
+}
+
 const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
-// One note with a quick-attack, exponential-decay (piano-ish) envelope.
+// Play one note. Uses the nearest piano sample (resampled) once loaded;
+// otherwise a soft triangle so the very first note still makes a sound.
 function playTone(ctx, midi, start, dur, peak) {
-  const osc = ctx.createOscillator();
-  const g = ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.value = midiToFreq(midi);
-  g.gain.setValueAtTime(0.0001, start);
-  g.gain.exponentialRampToValueAtTime(peak, start + 0.008);
-  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-  osc.connect(g); g.connect(masterGain);
-  osc.start(start);
-  osc.stop(start + dur + 0.05);
+  if (pianoBuffers && pianoBuffers.length) {
+    let s = pianoBuffers[0];
+    for (const c of pianoBuffers) if (Math.abs(c.midi - midi) < Math.abs(s.midi - midi)) s = c;
+    const src = ctx.createBufferSource();
+    src.buffer = s.buffer;
+    src.playbackRate.value = Math.pow(2, (midi - s.midi) / 12);
+    const g = ctx.createGain();
+    const level = peak * 2.6; // samples are near full-scale; scale to a safe mix level
+    g.gain.setValueAtTime(level, start);
+    g.gain.setValueAtTime(level, start + Math.max(0.05, dur - 0.35));
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur + 0.25); // release
+    src.connect(g); g.connect(masterGain);
+    src.start(start);
+    src.stop(start + dur + 0.3);
+  } else {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = midiToFreq(midi);
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(peak, start + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(start);
+    osc.stop(start + dur + 0.05);
+  }
 }
 
 // 1/3/5 for triads, 1/3/5/7 for 7th chords.
@@ -1052,6 +1110,16 @@ buildNoteKeys();
 syncModeButtons();
 setView('practice');
 nextQuestion();
+
+// Warm up audio + start decoding piano samples on the first user interaction,
+// so the very first answer plays the real piano (not the fallback tone).
+function primeAudioOnce() {
+  if (state.prefs.sound) getAudioCtx();
+  window.removeEventListener('pointerdown', primeAudioOnce);
+  window.removeEventListener('keydown', primeAudioOnce);
+}
+window.addEventListener('pointerdown', primeAudioOnce);
+window.addEventListener('keydown', primeAudioOnce);
 
 /* ---- Service worker: enables full offline use once installed ---- */
 if ('serviceWorker' in navigator) {

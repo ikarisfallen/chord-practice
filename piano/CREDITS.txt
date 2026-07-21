@@ -1,0 +1,6 @@
+Piano samples: Salamander Grand Piano V3 by Alexander Holm.
+Licensed under Creative Commons Attribution 3.0 (CC-BY 3.0).
+https://archive.org/details/SalamanderGrandPianoV3
+Obtained via the Tone.js sample set: https://tonejs.github.io/audio/salamander/
+A reduced subset (C3, F#3, C4, F#4, C5, F#5, C6) is bundled here; other pitches
+are produced by resampling the nearest sample.
