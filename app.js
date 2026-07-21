@@ -141,6 +141,7 @@ const DEFAULT_STATE = () => ({
     triadDegrees: [3],
     chordDegrees: [3],
     acceptEnharmonic: true,
+    sound: true,
   },
   tick: 0,
   items: {}, // key "root|quality|degree" -> item state
@@ -601,6 +602,78 @@ function finishChangesRound() {
   el.noteKeys.classList.add('disabled');
   phase = 'feedback';
   focusInput();
+  playChangesLine(r);
+}
+
+/* =========================================================================
+ * AUDIO — offline synth playback via the Web Audio API (no libraries, no
+ * samples, no network). Plays the chord low (left hand) and the asked note
+ * an octave higher (right hand).
+ * ========================================================================= */
+
+let audioCtx = null, masterGain = null;
+
+function getAudioCtx() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!audioCtx) {
+    audioCtx = new AC();
+    const lp = audioCtx.createBiquadFilter();      // soften the triangle a touch
+    lp.type = 'lowpass'; lp.frequency.value = 3800;
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0.9;
+    masterGain.connect(lp); lp.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume(); // must run inside a user gesture
+  return audioCtx;
+}
+
+const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+// One note with a quick-attack, exponential-decay (piano-ish) envelope.
+function playTone(ctx, midi, start, dur, peak) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = midiToFreq(midi);
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(peak, start + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  osc.connect(g); g.connect(masterGain);
+  osc.start(start);
+  osc.stop(start + dur + 0.05);
+}
+
+// 1/3/5 for triads, 1/3/5/7 for 7th chords.
+const voicingDegrees = (quality) => (QUALITIES[quality].mode === 'triads' ? [1, 3, 5] : [1, 3, 5, 7]);
+const chordRootMidi = (root) => 48 + root.pc; // root in the C3..B3 octave (left hand)
+
+function playChordNotes(ctx, root, quality, start, dur) {
+  const base = chordRootMidi(root);
+  for (const d of voicingDegrees(quality)) playTone(ctx, base + SCALES[quality][d - 1], start, dur, 0.13);
+}
+
+// Triads/Chords: one chord + the asked degree an octave above its chord position.
+function playChordAndNote(root, quality, degree) {
+  if (!state.prefs.sound) return;
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const t = ctx.currentTime + 0.03;
+  playChordNotes(ctx, root, quality, t, 1.3);
+  const melody = chordRootMidi(root) + SCALES[quality][degree - 1] + 12;
+  playTone(ctx, melody, t, 1.5, 0.22);
+}
+
+// Changes: the four chords + the four line notes, played as a progression.
+function playChangesLine(r) {
+  if (!state.prefs.sound) return;
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const beat = 0.62;
+  let t = ctx.currentTime + 0.05;
+  r.chords.forEach((c, i) => {
+    playChordNotes(ctx, c.root, c.quality, t, beat * 0.95);
+    playTone(ctx, r.targets[i].pitch + 12, t, beat * 0.95, 0.22); // line note, lifted above chords
+    t += beat;
+  });
 }
 
 function chordName(entry) {
@@ -674,6 +747,7 @@ function showFeedback(correct, kind, message, answer) {
   el.noteKeys.classList.add('disabled');
   phase = 'feedback';
   focusInput();               // ensure Enter advances even if the answer was submitted by mouse (desktop)
+  playChordAndNote(current.root, current.quality, current.degree);
 }
 
 function submitAnswer() {
@@ -747,6 +821,7 @@ function renderSettings() {
   $('#degrees-card').classList.toggle('hidden', isChanges);
   $('#changes-card').classList.toggle('hidden', !isChanges);
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
+  $('#sound-toggle').checked = state.prefs.sound;
   if (isChanges) return;
 
   $('#settings-mode-label').textContent = `(${mode})`;
@@ -779,6 +854,13 @@ function toggleDegree(d, on) {
 $('#accept-enharmonic').addEventListener('change', (e) => {
   state.prefs.acceptEnharmonic = e.target.checked;
   save();
+});
+
+$('#sound-toggle').addEventListener('change', (e) => {
+  state.prefs.sound = e.target.checked;
+  save();
+  // Play a quick preview when turning it on (also unlocks audio on this gesture).
+  if (state.prefs.sound && current) playChordAndNote(current.root, current.quality, current.degree);
 });
 
 $('#reset-btn').addEventListener('click', () => {

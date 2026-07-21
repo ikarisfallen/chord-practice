@@ -63,6 +63,12 @@ a note and it reveals the correct one and continues; you get a score out of 4 at
 end. Each Changes note also feeds the shared per-(root, quality, degree) stats, so
 the Stats page reflects Triads, Chords, and Changes together.
 
+### Sound
+After you answer, the app plays the chord in a low register (left hand) and the
+asked note an octave higher (right hand); in Changes it plays the whole four-chord
+line as a progression. Audio is synthesized with the browser's built-in Web Audio
+API — no libraries, samples, or network — so it works offline. Toggle it in Settings.
+
 ### Degrees
 You pick which scale degree(s) to be quizzed on (Settings). Triads offer 2–5,
 Chords offer 2–7. Default is just the **3rd**. The choice is remembered per mode.
