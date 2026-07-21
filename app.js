@@ -142,6 +142,7 @@ const DEFAULT_STATE = () => ({
     chordDegrees: [3],
     acceptEnharmonic: true,
     sound: true,
+    changesProgressions: ['random'],
   },
   tick: 0,
   items: {}, // key "root|quality|degree" -> item state
@@ -485,8 +486,22 @@ function generateChangesLine(chords, startDegree, direction) {
   return targets;
 }
 
-function newChangesRound() {
-  const scheme = pickRand(NOTATION_SCHEMES);
+// Named progressions, as [scale degree, chord quality] within a major/minor key.
+const PROGRESSIONS = {
+  majoriiVI: { label: 'Major ii-V-I', key: 'major', degrees: [[2, 'min7'], [5, 'dom7'], [1, 'maj7']] },
+  minoriiVi: { label: 'Minor ii-V-i', key: 'minor', degrees: [[2, 'halfdim'], [5, 'dom7'], [1, 'min7']] },
+  IviiiV:    { label: 'I-vi-ii-V',    key: 'major', degrees: [[1, 'maj7'], [6, 'min7'], [2, 'min7'], [5, 'dom7']] },
+  random:    { label: 'Random' },
+};
+const PROGRESSION_ORDER = ['majoriiVI', 'minoriiVi', 'IviiiV', 'random'];
+// Minor keys spelled without double accidentals (excludes D♭/G♭ minor).
+const MINOR_TONICS = ROOTS.filter(r => r.name !== 'D♭' && r.name !== 'G♭');
+
+function makeChord(root, quality, scheme) {
+  return { root, quality, symbol: root.name + scheme[quality] };
+}
+
+function randomChords(scheme) {
   const chords = [];
   for (let i = 0; i < 4; i++) {
     let root, quality;
@@ -494,12 +509,32 @@ function newChangesRound() {
       root = pickRand(ROOTS);
       quality = pickRand(CHORD_QUALITIES);
     } while (i > 0 && root === chords[i - 1].root && quality === chords[i - 1].quality);
-    chords.push({ root, quality, symbol: root.name + scheme[quality] });
+    chords.push(makeChord(root, quality, scheme));
   }
+  return chords;
+}
+
+// Build a named progression in a random key, spelling each chord's root
+// correctly relative to that key (e.g. the ii in B major is C♯m7).
+function progressionChords(type, scheme) {
+  const def = PROGRESSIONS[type];
+  const tonic = pickRand(def.key === 'minor' ? MINOR_TONICS : ROOTS);
+  return def.degrees.map(([deg, quality]) => {
+    const n = spell(tonic, def.key, deg);
+    return makeChord({ name: n.display, letter: n.letter, pc: n.pc }, quality, scheme);
+  });
+}
+
+function newChangesRound() {
+  const enabled = (state.prefs.changesProgressions && state.prefs.changesProgressions.length)
+    ? state.prefs.changesProgressions : ['random'];
+  const type = pickRand(enabled);
+  const scheme = pickRand(NOTATION_SCHEMES);
+  const chords = type === 'random' ? randomChords(scheme) : progressionChords(type, scheme);
   const startDegree = pickRand([1, 3, 5, 7]);
   const direction = pickRand([1, -1]);
   changesRound = {
-    chords, startDegree, direction,
+    type, chords, startDegree, direction, // `type` is not shown during practice
     targets: generateChangesLine(chords, startDegree, direction),
     idx: 0, results: [],
   };
@@ -880,7 +915,7 @@ function renderSettings() {
   $('#changes-card').classList.toggle('hidden', !isChanges);
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
   $('#sound-toggle').checked = state.prefs.sound;
-  if (isChanges) return;
+  if (isChanges) { renderChangesProgressions(); return; }
 
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
@@ -907,6 +942,31 @@ function toggleDegree(d, on) {
   save();
   renderSettings();
   nextQuestion();
+}
+
+function renderChangesProgressions() {
+  const enabled = state.prefs.changesProgressions || ['random'];
+  const box = $('#changes-prog-checkboxes');
+  box.innerHTML = '';
+  for (const type of PROGRESSION_ORDER) {
+    const on = enabled.includes(type);
+    const label = document.createElement('label');
+    label.className = 'deg-check' + (on ? ' on' : '');
+    label.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''}><span>${PROGRESSIONS[type].label}</span>`;
+    label.querySelector('input').addEventListener('change', (e) => toggleChangesProgression(type, e.target.checked));
+    box.appendChild(label);
+  }
+}
+
+function toggleChangesProgression(type, on) {
+  let list = (state.prefs.changesProgressions || ['random']).slice();
+  if (on) { if (!list.includes(type)) list.push(type); }
+  else { list = list.filter(x => x !== type); }
+  if (list.length === 0) list = [type]; // never allow zero
+  state.prefs.changesProgressions = list;
+  save();
+  renderSettings();
+  if (state.prefs.mode === 'changes') nextQuestion();
 }
 
 $('#accept-enharmonic').addEventListener('change', (e) => {
@@ -1075,17 +1135,25 @@ function renderHeatmaps() {
   container.innerHTML = '';
   for (const q of Object.keys(QUALITIES)) {
     const degrees = heatmapDegrees(q);
+    // Base roots plus any extra spellings seen from Changes progressions (e.g. C♯).
+    const extra = new Set();
+    for (const k in state.items) {
+      if (state.items[k].attempts === 0) continue;
+      const [rn, kq] = k.split('|');
+      if (kq === q && !ROOT_BY_NAME[rn]) extra.add(rn);
+    }
+    const rowNames = [...ROOTS.map(r => r.name), ...[...extra].sort()];
     let head = '<tr><th></th>' + degrees.map(d => `<th>${ordinal(d)}</th>`).join('') + '</tr>';
     let body = '';
-    for (const root of ROOTS) {
-      let cells = `<th>${root.name}</th>`;
+    for (const rootName of rowNames) {
+      let cells = `<th>${rootName}</th>`;
       for (const d of degrees) {
-        const it = state.items[itemKey(root.name, q, d)];
+        const it = state.items[itemKey(rootName, q, d)];
         const seen = it && it.attempts > 0;
         const p = seen ? pct(it.correct, it.attempts) : 0;
         const level = it ? it.level : 0;
         const bw = seen ? Math.min(4, 1 + Math.floor(level / 2)) : 0;
-        const title = seen ? `${root.name} ${QUALITIES[q].label} ${ordinal(d)}: ${it.correct}/${it.attempts} (lvl ${level})` : 'not seen';
+        const title = seen ? `${rootName} ${QUALITIES[q].label} ${ordinal(d)}: ${it.correct}/${it.attempts} (lvl ${level})` : 'not seen';
         cells += `<td class="cell" title="${title}"
           style="background:${accColor(p, seen)};border-width:${bw}px;border-color:var(--accent)">
           ${seen ? it.attempts : ''}</td>`;
