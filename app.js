@@ -536,7 +536,7 @@ function newChangesRound() {
   const type = pickRand(enabled.length ? enabled : ['random']);
   const scheme = pickRand(NOTATION_SCHEMES);
   const chords = type === 'random' ? randomChords(scheme) : progressionChords(type, scheme);
-  const startDegree = pickRand([1, 3, 5, 7]);
+  const startDegree = pickRand([3, 5, 7]); // never start on the root
   const direction = pickRand([1, -1]);
   changesRound = {
     type, chords, startDegree, direction, // `type` is not shown during practice
