@@ -520,15 +520,27 @@ function randomChords(scheme) {
   return chords;
 }
 
+// A root spelling to avoid: an enharmonic natural (C♭/F♭/E♯/B♯ — a white-key
+// pitch written with an accidental) or anything with a double accidental.
+const NATURAL_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
+function isAwkwardSpelling(note) {
+  return (NATURAL_PCS.has(note.pc) && note.acc !== 0) || Math.abs(note.acc) >= 2;
+}
+
 // Build a named progression in a random key, spelling each chord's root
-// correctly relative to that key (e.g. the ii in B major is C♯m7).
+// correctly relative to that key (e.g. the ii in B major is C♯m7). Re-rolls the
+// key if any chord root would come out as C♭/F♭/E♯/B♯ (e.g. Major 2-5-1-4 in G♭
+// would make the IV a C♭maj7).
 function progressionChords(type, scheme) {
   const def = PROGRESSIONS[type];
-  const tonic = pickRand(def.key === 'minor' ? MINOR_TONICS : ROOTS);
-  return def.degrees.map(([deg, quality]) => {
-    const n = spell(tonic, def.key, deg);
-    return makeChord({ name: n.display, letter: n.letter, pc: n.pc }, quality, scheme);
-  });
+  const tonics = def.key === 'minor' ? MINOR_TONICS : ROOTS;
+  let notes;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const tonic = pickRand(tonics);
+    notes = def.degrees.map(([deg, quality]) => ({ n: spell(tonic, def.key, deg), quality }));
+    if (!notes.some(({ n }) => isAwkwardSpelling(n))) break;
+  }
+  return notes.map(({ n, quality }) => makeChord({ name: n.display, letter: n.letter, pc: n.pc }, quality, scheme));
 }
 
 // How the line moves through the chords. Ascending/Descending start on a
