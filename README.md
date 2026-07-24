@@ -75,6 +75,16 @@ are four chords:
 - **3-6-2-5** (iii-vi-ii-V descending, e.g. Em7 Am7 Dm7 G7)
 - **Random** — four random 7th chords (the original behavior)
 
+**Line** (Settings → Changes) — how the melodic line moves; one is chosen at random
+each round alongside the sequence:
+- **Ascending** / **Descending** — start on a random 3rd/5th/7th and step to the
+  nearest chord tone that direction.
+- **over over under** / **under under over** — instead *end* on a target note (a
+  3rd/5th/7th of the last chord). For each earlier chord you play its nearest chord
+  tone above (over) or below (under) the target, per the pattern, then land on the
+  target. e.g. Am7 Dm7 G7 Cmaj7 targeting G → over-over-under = A A F G, and
+  under-under-over = E F B G.
+
 ### Sound
 After you answer, the app plays the chord in a low register (left hand) and the
 asked note an octave higher (right hand); in Changes it plays the whole four-chord

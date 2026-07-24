@@ -143,6 +143,7 @@ const DEFAULT_STATE = () => ({
     acceptEnharmonic: true,
     sound: true,
     changesProgressions: ['random'],
+    changesLineModes: ['ascending', 'descending'],
   },
   tick: 0,
   items: {}, // key "root|quality|degree" -> item state
@@ -530,27 +531,70 @@ function progressionChords(type, scheme) {
   });
 }
 
+// How the line moves through the chords. Ascending/Descending start on a
+// random 3/5/7 and step to the nearest chord tone in that direction. The
+// "over/under" modes instead END on a target note (a 3/5/7 of the last chord)
+// and approach it: each earlier chord takes its nearest chord tone above (over)
+// or below (under) that target, per the named pattern.
+const LINE_MODES = {
+  ascending:      { label: 'Ascending' },
+  descending:     { label: 'Descending' },
+  overoverunder:  { label: 'over over under', pattern: [1, 1, -1] },
+  underunderover: { label: 'under under over', pattern: [-1, -1, 1] },
+};
+const LINE_MODE_ORDER = ['ascending', 'descending', 'overoverunder', 'underunderover'];
+
+// End on `targetDegree` of the last chord; approach it per the mode's pattern.
+function buildTargetLine(chords, targetDegree, lineMode) {
+  const last = chords[chords.length - 1];
+  const lastTones = chordToneList(last);
+  const targetTone = lastTones.find((t) => t.degree === targetDegree) || lastTones[0];
+  const targetPitch = 60 + targetTone.pc; // seat the target in a middle octave
+  const pattern = LINE_MODES[lineMode].pattern;
+  const targets = [];
+  for (let i = 0; i < chords.length - 1; i++) {
+    const dir = i < pattern.length ? pattern[i] : pattern[pattern.length - 1];
+    targets.push(nearestInDirection(targetPitch, dir, chordToneList(chords[i])));
+  }
+  targets.push(Object.assign({}, targetTone, { pitch: targetPitch }));
+  return targets;
+}
+
 function newChangesRound() {
-  const known = new Set(PROGRESSION_ORDER);
-  const enabled = (state.prefs.changesProgressions || []).filter((t) => known.has(t));
-  const type = pickRand(enabled.length ? enabled : ['random']);
+  const knownProg = new Set(PROGRESSION_ORDER);
+  const enabledProg = (state.prefs.changesProgressions || []).filter((t) => knownProg.has(t));
+  const type = pickRand(enabledProg.length ? enabledProg : ['random']);
   const scheme = pickRand(NOTATION_SCHEMES);
   const chords = type === 'random' ? randomChords(scheme) : progressionChords(type, scheme);
-  const startDegree = pickRand([3, 5, 7]); // never start on the root
-  const direction = pickRand([1, -1]);
-  changesRound = {
-    type, chords, startDegree, direction, // `type` is not shown during practice
-    targets: generateChangesLine(chords, startDegree, direction),
-    idx: 0, results: [],
-  };
+
+  const knownModes = new Set(LINE_MODE_ORDER);
+  const enabledModes = (state.prefs.changesLineModes || []).filter((m) => knownModes.has(m));
+  const lineMode = pickRand(enabledModes.length ? enabledModes : ['ascending', 'descending']);
+
+  const base = { type, chords, lineMode, idx: 0, results: [] }; // `type`/`lineMode` not shown as words beyond the pattern
+  if (lineMode === 'ascending' || lineMode === 'descending') {
+    const startDegree = pickRand([3, 5, 7]); // never start on the root
+    const direction = lineMode === 'ascending' ? 1 : -1;
+    changesRound = Object.assign(base, { startDegree, direction, targets: generateChangesLine(chords, startDegree, direction) });
+  } else {
+    const targetDegree = pickRand([3, 5, 7]);
+    changesRound = Object.assign(base, { targetDegree, targets: buildTargetLine(chords, targetDegree, lineMode) });
+  }
 }
 
 function renderChangesPrompt() {
   const r = changesRound;
-  const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
-  el.changesInstruction.innerHTML =
-    `Start on the <strong>${START_LABEL[r.startDegree]}</strong> — <strong>${dir}</strong>. ` +
-    `Enter a chord tone of each chord.`;
+  if (r.lineMode === 'overoverunder' || r.lineMode === 'underunderover') {
+    const pat = LINE_MODES[r.lineMode].label.replace(/ /g, ' · ');
+    el.changesInstruction.innerHTML =
+      `End on the <strong>${START_LABEL[r.targetDegree]}</strong> of the last chord — approach it <strong>${pat}</strong>. ` +
+      `Enter a chord tone of each chord.`;
+  } else {
+    const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
+    el.changesInstruction.innerHTML =
+      `Start on the <strong>${START_LABEL[r.startDegree]}</strong> — <strong>${dir}</strong>. ` +
+      `Enter a chord tone of each chord.`;
+  }
   el.changesStrip.innerHTML = '';
   r.chords.forEach((c, i) => {
     const cell = document.createElement('div');
@@ -920,7 +964,7 @@ function renderSettings() {
   $('#changes-card').classList.toggle('hidden', !isChanges);
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
   $('#sound-toggle').checked = state.prefs.sound;
-  if (isChanges) { renderChangesProgressions(); return; }
+  if (isChanges) { renderChangesProgressions(); renderChangesLineModes(); return; }
 
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
@@ -969,6 +1013,31 @@ function toggleChangesProgression(type, on) {
   else { list = list.filter(x => x !== type); }
   if (list.length === 0) list = [type]; // never allow zero
   state.prefs.changesProgressions = list;
+  save();
+  renderSettings();
+  if (state.prefs.mode === 'changes') nextQuestion();
+}
+
+function renderChangesLineModes() {
+  const enabled = state.prefs.changesLineModes || ['ascending', 'descending'];
+  const box = $('#changes-linemode-checkboxes');
+  box.innerHTML = '';
+  for (const m of LINE_MODE_ORDER) {
+    const on = enabled.includes(m);
+    const label = document.createElement('label');
+    label.className = 'deg-check' + (on ? ' on' : '');
+    label.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''}><span>${LINE_MODES[m].label}</span>`;
+    label.querySelector('input').addEventListener('change', (e) => toggleChangesLineMode(m, e.target.checked));
+    box.appendChild(label);
+  }
+}
+
+function toggleChangesLineMode(m, on) {
+  let list = (state.prefs.changesLineModes || ['ascending', 'descending']).slice();
+  if (on) { if (!list.includes(m)) list.push(m); }
+  else { list = list.filter(x => x !== m); }
+  if (list.length === 0) list = [m]; // never allow zero
+  state.prefs.changesLineModes = list;
   save();
   renderSettings();
   if (state.prefs.mode === 'changes') nextQuestion();

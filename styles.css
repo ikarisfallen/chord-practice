@@ -173,6 +173,7 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
 }
 .deg-check input { accent-color: var(--accent); width: 16px; height: 16px; }
 .deg-check.on { border-color: var(--accent); background: var(--accent-weak); color: var(--accent); }
+.settings-subhead { margin: 22px 0 6px; font-size: 1rem; }
 .switch-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
 .switch-row input { margin-top: 4px; accent-color: var(--accent); }
 .muted, .muted small { color: var(--muted); }
