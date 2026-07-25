@@ -133,6 +133,10 @@ function parseAnswer(str) {
  * STATE / PERSISTENCE
  * ========================================================================= */
 
+// Shown in the header so you can confirm an update landed. Keep in sync with
+// CACHE in sw.js — bump both on every deploy.
+const APP_VERSION = 'v15';
+
 const STORAGE_KEY = 'chordpractice.v1';
 
 const DEFAULT_STATE = () => ({
@@ -1259,6 +1263,9 @@ function syncModeButtons() {
   document.querySelectorAll('.mode-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.mode === state.prefs.mode));
 }
+
+const versionEl = document.getElementById('app-version');
+if (versionEl) versionEl.textContent = APP_VERSION;
 
 buildNoteKeys();
 syncModeButtons();
