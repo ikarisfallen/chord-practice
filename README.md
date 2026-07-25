@@ -75,6 +75,10 @@ are four chords:
 - **3-6-2-5** (iii-vi-ii-V descending, e.g. Em7 Am7 Dm7 G7)
 - **Random** — four random 7th chords (the original behavior)
 
+**Chord tones** (Settings → Changes) — build the line from **1-3-5-7** (include the
+7th, the default) or **1-3-5** (triad tones only). Affects which chord tones the
+line, start note, and target can use.
+
 **Line** (Settings → Changes) — how the melodic line moves; one is chosen at random
 each round alongside the sequence:
 - **Ascending** / **Descending** — start on a random 3rd/5th/7th and step to the

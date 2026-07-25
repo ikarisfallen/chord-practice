@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -148,6 +148,7 @@ const DEFAULT_STATE = () => ({
     sound: true,
     changesProgressions: ['random'],
     changesLineModes: ['ascending', 'descending'],
+    changesInclude7th: true,
   },
   tick: 0,
   items: {}, // key "root|quality|degree" -> item state
@@ -454,8 +455,17 @@ const START_LABEL = { 1: 'root', 3: '3rd', 5: '5th', 7: '7th' };
 
 let changesRound = null;
 
+// Which chord tones the line may use: 1-3-5 (triad) or 1-3-5-7 (with the 7th).
+function changesToneDegrees() {
+  return state.prefs.changesInclude7th === false ? [1, 3, 5] : [1, 3, 5, 7];
+}
+// The tones the line can START or TARGET on: the pool minus the root.
+function changesAnchorDegrees() {
+  return changesToneDegrees().filter((d) => d !== 1);
+}
+
 function chordToneList(chord) {
-  return [1, 3, 5, 7].map((d) => {
+  return changesToneDegrees().map((d) => {
     const s = spell(chord.root, chord.quality, d);
     return { degree: d, pc: s.pc, letter: s.letter, acc: s.acc, text: s.text, display: s.display };
   });
@@ -589,11 +599,11 @@ function newChangesRound() {
 
   const base = { type, chords, lineMode, idx: 0, results: [] }; // `type`/`lineMode` not shown as words beyond the pattern
   if (lineMode === 'ascending' || lineMode === 'descending') {
-    const startDegree = pickRand([3, 5, 7]); // never start on the root
+    const startDegree = pickRand(changesAnchorDegrees()); // never start on the root
     const direction = lineMode === 'ascending' ? 1 : -1;
     changesRound = Object.assign(base, { startDegree, direction, targets: generateChangesLine(chords, startDegree, direction) });
   } else {
-    const targetDegree = pickRand([3, 5, 7]);
+    const targetDegree = pickRand(changesAnchorDegrees());
     changesRound = Object.assign(base, { targetDegree, targets: buildTargetLine(chords, targetDegree, lineMode) });
   }
 }
@@ -980,7 +990,12 @@ function renderSettings() {
   $('#changes-card').classList.toggle('hidden', !isChanges);
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
   $('#sound-toggle').checked = state.prefs.sound;
-  if (isChanges) { renderChangesProgressions(); renderChangesLineModes(); return; }
+  if (isChanges) {
+    renderChangesProgressions();
+    renderChangesLineModes();
+    $('#changes-7th-toggle').checked = state.prefs.changesInclude7th !== false;
+    return;
+  }
 
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
@@ -1058,6 +1073,12 @@ function toggleChangesLineMode(m, on) {
   renderSettings();
   if (state.prefs.mode === 'changes') nextQuestion();
 }
+
+$('#changes-7th-toggle').addEventListener('change', (e) => {
+  state.prefs.changesInclude7th = e.target.checked;
+  save();
+  if (state.prefs.mode === 'changes') nextQuestion();
+});
 
 $('#accept-enharmonic').addEventListener('change', (e) => {
   state.prefs.acceptEnharmonic = e.target.checked;
