@@ -43,6 +43,15 @@ saves a `.json` file, and **Import backup** restores it (on any device).
 `chord-practice-v2`). Phones pick up the new version the next time they open it
 online.
 
+## Printable worksheets
+The **Worksheet** tab generates a page of exercises for printing or saving as a
+PDF, entirely in the browser (offline, no PDF library). Pick a mode and a question
+count, then **Print / Save as PDF** (Ctrl/Cmd+P → destination "Save as PDF").
+Questions are laid out in a compact grid with the answer printed small under each.
+Worksheets use your current settings for that mode (selected degrees, chord
+qualities, Changes sequences/line modes/1-3-5-vs-1-3-5-7). Print styling forces a
+clean black-on-white layout via `@media print`.
+
 ## How it works
 
 ### Modes & qualities

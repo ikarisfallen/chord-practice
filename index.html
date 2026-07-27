@@ -27,6 +27,7 @@
       <button class="nav-btn" data-view="practice">Practice</button>
       <button class="nav-btn" data-view="stats">Stats</button>
       <button class="nav-btn" data-view="settings">Settings</button>
+      <button class="nav-btn" data-view="worksheet">Worksheet</button>
     </nav>
   </header>
 
@@ -144,6 +145,33 @@
         <p id="backup-msg" class="muted backup-msg"></p>
         <button id="reset-btn" type="button" class="danger-btn">Reset all progress &amp; stats</button>
       </div>
+    </section>
+
+    <!-- WORKSHEET -->
+    <section id="view-worksheet" class="view hidden">
+      <div class="worksheet-controls card">
+        <div class="ws-control-row">
+          <label class="ws-field">Mode
+            <select id="ws-mode">
+              <option value="triads">Triads</option>
+              <option value="chords">Chords</option>
+              <option value="changes">Changes</option>
+            </select>
+          </label>
+          <label class="ws-field">Questions
+            <select id="ws-count">
+              <option>12</option><option>24</option><option selected>36</option>
+              <option>48</option><option>60</option>
+            </select>
+          </label>
+          <button id="ws-generate" type="button" class="ghost-btn">Regenerate</button>
+          <button id="ws-print" type="button" class="ghost-btn">Print / Save as PDF</button>
+        </div>
+        <p class="muted ws-hint">Questions use your current settings for that mode. Answers print small under each
+          question. To make a PDF, click <strong>Print</strong> and choose <strong>Save as PDF</strong> as the
+          destination (Ctrl/Cmd&nbsp;+&nbsp;P also works).</p>
+      </div>
+      <div id="worksheet-sheet" class="worksheet-sheet"></div>
     </section>
   </main>
 

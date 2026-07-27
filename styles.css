@@ -219,3 +219,51 @@ table.hm td.cell {
 }
 .muted { color: var(--muted); }
 h2 { margin-top: 0; }
+
+/* ---- Worksheet ---- */
+.ws-control-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.ws-field { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--muted); font-weight: 600; }
+.ws-field select {
+  font: inherit; font-size: .95rem; color: var(--text); background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+}
+.ws-hint { margin: 12px 0 0; }
+
+.worksheet-sheet { margin-top: 20px; }
+.ws-title { font-size: 1.15rem; font-weight: 800; margin-bottom: 2px; }
+.ws-subtitle { color: var(--muted); font-size: .85rem; margin-bottom: 16px; }
+
+.ws-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 22px; }
+.ws-item { break-inside: avoid; font-family: var(--mono); font-size: .95rem; line-height: 1.35; }
+.ws-item .ws-q { color: var(--text); }
+.ws-item .ws-blank { display: inline-block; min-width: 3.2em; border-bottom: 1px solid var(--border); }
+.ws-item .ws-a { color: var(--muted); font-size: .78rem; margin-left: 1.6em; }
+
+/* Changes items are wider: one per row (two columns on wide screens) */
+.ws-grid.changes { grid-template-columns: 1fr; gap: 16px; }
+.ws-citem { break-inside: avoid; }
+.ws-citem .ws-cinstr { font-size: .82rem; color: var(--muted); margin-bottom: 4px; }
+.ws-cchords { display: flex; flex-wrap: wrap; gap: 10px 26px; font-family: var(--mono); }
+.ws-cchord { text-align: center; }
+.ws-cchord .ws-csym { font-weight: 700; font-size: 1rem; }
+.ws-cchord .ws-cblank { height: 1.3em; border-bottom: 1px solid var(--border); margin: 3px 0; min-width: 3em; }
+.ws-cchord .ws-a { color: var(--muted); font-size: .78rem; }
+
+@media (min-width: 720px) { .ws-grid.changes { grid-template-columns: 1fr 1fr; } }
+
+/* ---- Print ---- */
+@media print {
+  :root {
+    --bg: #fff; --surface: #fff; --surface-2: #fff; --text: #000;
+    --muted: #666; --border: #999; --accent: #000;
+  }
+  .app-header, .worksheet-controls,
+  #view-practice, #view-stats, #view-settings { display: none !important; }
+  body { background: #fff; }
+  main { max-width: none; margin: 0; padding: 0; }
+  .worksheet-sheet { margin: 0; }
+  .ws-grid { gap: 8px 24px; }
+  .ws-item, .ws-citem { page-break-inside: avoid; }
+  .ws-item .ws-a, .ws-cchord .ws-a { color: #555; }
+  @page { margin: 14mm; }
+}

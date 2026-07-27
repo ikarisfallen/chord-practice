@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -586,7 +586,7 @@ function buildTargetLine(chords, targetDegree, lineMode) {
   return targets;
 }
 
-function newChangesRound() {
+function buildChangesRound() {
   const knownProg = new Set(PROGRESSION_ORDER);
   const enabledProg = (state.prefs.changesProgressions || []).filter((t) => knownProg.has(t));
   const type = pickRand(enabledProg.length ? enabledProg : ['random']);
@@ -601,26 +601,29 @@ function newChangesRound() {
   if (lineMode === 'ascending' || lineMode === 'descending') {
     const startDegree = pickRand(changesAnchorDegrees()); // never start on the root
     const direction = lineMode === 'ascending' ? 1 : -1;
-    changesRound = Object.assign(base, { startDegree, direction, targets: generateChangesLine(chords, startDegree, direction) });
-  } else {
-    const targetDegree = pickRand(changesAnchorDegrees());
-    changesRound = Object.assign(base, { targetDegree, targets: buildTargetLine(chords, targetDegree, lineMode) });
+    return Object.assign(base, { startDegree, direction, targets: generateChangesLine(chords, startDegree, direction) });
   }
+  const targetDegree = pickRand(changesAnchorDegrees());
+  return Object.assign(base, { targetDegree, targets: buildTargetLine(chords, targetDegree, lineMode) });
+}
+
+function newChangesRound() {
+  changesRound = buildChangesRound();
+}
+
+// The instruction for a round (what to do), without the "Enter a chord tone…" tail.
+function changesInstructionText(r) {
+  if (r.lineMode === 'overoverunder' || r.lineMode === 'underunderover') {
+    const pat = LINE_MODES[r.lineMode].label.replace(/ /g, ' · ');
+    return `End on the <strong>${START_LABEL[r.targetDegree]}</strong> of the last chord — approach it <strong>${pat}</strong>`;
+  }
+  const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
+  return `Start on the <strong>${START_LABEL[r.startDegree]}</strong> — <strong>${dir}</strong>`;
 }
 
 function renderChangesPrompt() {
   const r = changesRound;
-  if (r.lineMode === 'overoverunder' || r.lineMode === 'underunderover') {
-    const pat = LINE_MODES[r.lineMode].label.replace(/ /g, ' · ');
-    el.changesInstruction.innerHTML =
-      `End on the <strong>${START_LABEL[r.targetDegree]}</strong> of the last chord — approach it <strong>${pat}</strong>. ` +
-      `Enter a chord tone of each chord.`;
-  } else {
-    const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
-    el.changesInstruction.innerHTML =
-      `Start on the <strong>${START_LABEL[r.startDegree]}</strong> — <strong>${dir}</strong>. ` +
-      `Enter a chord tone of each chord.`;
-  }
+  el.changesInstruction.innerHTML = changesInstructionText(r) + '. Enter a chord tone of each chord.';
   el.changesStrip.innerHTML = '';
   r.chords.forEach((c, i) => {
     const cell = document.createElement('div');
@@ -967,6 +970,7 @@ function setView(view) {
   if (view === 'stats') renderStats();
   if (view === 'settings') renderSettings();
   if (view === 'practice') focusInput();
+  if (view === 'worksheet') renderWorksheet();
 }
 document.querySelectorAll('.nav-btn').forEach(b =>
   b.addEventListener('click', () => setView(b.dataset.view)));
@@ -1277,6 +1281,66 @@ function renderHeatmaps() {
     container.appendChild(div);
   }
 }
+
+/* =========================================================================
+ * WORKSHEET — printable exercises (browser Print / Save as PDF, offline).
+ * ========================================================================= */
+
+let worksheetMode = null; // null = follow the current practice mode
+
+// Random (root, quality, degree) items for a Triads/Chords worksheet, honoring
+// that mode's selected degrees.
+function worksheetTriChordItems(mode, count) {
+  const degrees = mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees;
+  const qualities = MODE_QUALITIES[mode];
+  const combos = [];
+  for (const root of ROOTS) for (const q of qualities) for (const d of degrees) combos.push({ root, quality: q, degree: d });
+  const items = [];
+  let prev = null;
+  for (let i = 0; i < count; i++) {
+    let c;
+    do { c = combos[Math.floor(Math.random() * combos.length)]; }
+    while (combos.length > 1 && prev && c.root === prev.root && c.quality === prev.quality && c.degree === prev.degree);
+    prev = c;
+    items.push({ symbol: chordSymbol(c), ask: ordinal(c.degree), answer: spell(c.root, c.quality, c.degree).display });
+  }
+  return items;
+}
+
+function renderWorksheet() {
+  const mode = worksheetMode || (state.prefs.mode === 'changes' ? 'changes' : state.prefs.mode);
+  const count = parseInt($('#ws-count').value, 10) || 36;
+  $('#ws-mode').value = mode;
+  const modeLabel = { triads: 'Triads', chords: 'Chords', changes: 'Changes' }[mode];
+
+  let html = `<div class="ws-title">Chord Practice — ${modeLabel} worksheet</div>`;
+  html += `<div class="ws-subtitle">${count} questions · answers shown small under each · ${APP_VERSION}</div>`;
+
+  if (mode === 'changes') {
+    html += '<div class="ws-grid changes">';
+    for (let i = 0; i < count; i++) {
+      const r = buildChangesRound();
+      html += `<div class="ws-citem"><div class="ws-cinstr">${i + 1}. ${changesInstructionText(r)}</div><div class="ws-cchords">`;
+      r.chords.forEach((c, j) => {
+        html += `<div class="ws-cchord"><div class="ws-csym">${c.symbol}</div><div class="ws-cblank"></div><div class="ws-a">${r.targets[j].display}</div></div>`;
+      });
+      html += '</div></div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="ws-grid">';
+    worksheetTriChordItems(mode, count).forEach((it, i) => {
+      html += `<div class="ws-item"><div class="ws-q">${i + 1}. ${it.symbol} — ${it.ask} = <span class="ws-blank"></span></div><div class="ws-a">${it.answer}</div></div>`;
+    });
+    html += '</div>';
+  }
+  $('#worksheet-sheet').innerHTML = html;
+}
+
+$('#ws-mode').addEventListener('change', (e) => { worksheetMode = e.target.value; renderWorksheet(); });
+$('#ws-count').addEventListener('change', renderWorksheet);
+$('#ws-generate').addEventListener('click', renderWorksheet);
+$('#ws-print').addEventListener('click', () => window.print());
 
 /* ---- Init ---- */
 
