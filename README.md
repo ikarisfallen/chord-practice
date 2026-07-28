@@ -44,13 +44,15 @@ saves a `.json` file, and **Import backup** restores it (on any device).
 online.
 
 ## Printable worksheets
-The **Worksheet** tab generates a page of exercises for printing or saving as a
-PDF, entirely in the browser (offline, no PDF library). Pick a mode and a question
-count, then **Print / Save as PDF** (Ctrl/Cmd+P → destination "Save as PDF").
-Questions are laid out in a compact grid with the answer printed small under each.
-Worksheets use your current settings for that mode (selected degrees, chord
-qualities, Changes sequences/line modes/1-3-5-vs-1-3-5-7). Print styling forces a
-clean black-on-white layout via `@media print`.
+The **Worksheet** tab builds a print-ready worksheet, entirely in the browser
+(offline, no PDF library). Pick a mode and a number of **pages**, then
+**Open in new tab** — it opens a self-contained page (a `blob:` document) styled as
+white **US-Letter (8.5×11″)** sheets with black question text and grey answers.
+That page's own script greedily fills each Letter sheet with questions until the
+next one would overflow — letting the browser measure the fit — so every page packs
+full. Print or Save as PDF from that tab (Ctrl/Cmd+P). Worksheets use your current
+settings for that mode (selected degrees, chord qualities, Changes sequences/line
+modes/1-3-5-vs-1-3-5-7); the answer is printed small under each question.
 
 ## How it works
 

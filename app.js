@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v17';
+const APP_VERSION = 'v18';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -970,7 +970,7 @@ function setView(view) {
   if (view === 'stats') renderStats();
   if (view === 'settings') renderSettings();
   if (view === 'practice') focusInput();
-  if (view === 'worksheet') renderWorksheet();
+  if (view === 'worksheet') $('#ws-mode').value = worksheetMode || state.prefs.mode;
 }
 document.querySelectorAll('.nav-btn').forEach(b =>
   b.addEventListener('click', () => setView(b.dataset.view)));
@@ -1283,64 +1283,122 @@ function renderHeatmaps() {
 }
 
 /* =========================================================================
- * WORKSHEET — printable exercises (browser Print / Save as PDF, offline).
+ * WORKSHEET — opens a print-ready page in a new tab (white US-Letter sheets,
+ * black/grey text) built as a self-contained blob document, so it works
+ * offline. The document's own script greedily fills each Letter page with
+ * questions until it would overflow — letting the browser measure the fit
+ * rather than us computing heights by hand.
  * ========================================================================= */
 
 let worksheetMode = null; // null = follow the current practice mode
 
-// Random (root, quality, degree) items for a Triads/Chords worksheet, honoring
-// that mode's selected degrees.
-function worksheetTriChordItems(mode, count) {
+// Item HTML strings (a `.ws-num` span is filled with the running number when
+// an item is placed on a page). One generous pool is generated, then trimmed
+// to whatever fills the requested number of pages.
+function worksheetItemsHTML(mode, count) {
+  const arr = [];
+  if (mode === 'changes') {
+    for (let i = 0; i < count; i++) {
+      const r = buildChangesRound();
+      let h = `<div class="ws-citem"><div class="ws-cinstr"><span class="ws-num"></span> ${changesInstructionText(r)}</div><div class="ws-cchords">`;
+      r.chords.forEach((c, j) => {
+        h += `<div class="ws-cchord"><div class="ws-csym">${c.symbol}</div><div class="ws-cblank"></div><div class="ws-a">${r.targets[j].display}</div></div>`;
+      });
+      arr.push(h + '</div></div>');
+    }
+    return arr;
+  }
   const degrees = mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees;
   const qualities = MODE_QUALITIES[mode];
   const combos = [];
   for (const root of ROOTS) for (const q of qualities) for (const d of degrees) combos.push({ root, quality: q, degree: d });
-  const items = [];
   let prev = null;
   for (let i = 0; i < count; i++) {
     let c;
     do { c = combos[Math.floor(Math.random() * combos.length)]; }
     while (combos.length > 1 && prev && c.root === prev.root && c.quality === prev.quality && c.degree === prev.degree);
     prev = c;
-    items.push({ symbol: chordSymbol(c), ask: ordinal(c.degree), answer: spell(c.root, c.quality, c.degree).display });
+    const answer = spell(c.root, c.quality, c.degree).display;
+    arr.push(`<div class="ws-item"><div class="ws-q"><span class="ws-num"></span> ${chordSymbol(c)} — ${ordinal(c.degree)} = <span class="ws-blank"></span></div><div class="ws-a">${answer}</div></div>`);
   }
-  return items;
+  return arr;
 }
 
-function renderWorksheet() {
-  const mode = worksheetMode || (state.prefs.mode === 'changes' ? 'changes' : state.prefs.mode);
-  const count = parseInt($('#ws-count').value, 10) || 36;
-  $('#ws-mode').value = mode;
-  const modeLabel = { triads: 'Triads', chords: 'Chords', changes: 'Changes' }[mode];
+const WORKSHEET_CSS = `
+  html, body { margin: 0; background: #9aa2ad; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif; }
+  .page { width: 8.5in; height: 11in; box-sizing: border-box; padding: 0.6in; margin: 0.3in auto;
+    background: #fff; color: #000; box-shadow: 0 3px 14px rgba(0,0,0,.35); overflow: hidden; }
+  .ws-title { font-size: 16pt; font-weight: 800; margin: 0 0 2px; }
+  .ws-subtitle { font-size: 9pt; color: #666; margin: 0 0 14px; }
+  .ws-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9pt 22pt; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .ws-grid.changes { grid-template-columns: 1fr 1fr; gap: 15pt 26pt; }
+  .ws-item { font-size: 11pt; line-height: 1.3; break-inside: avoid; }
+  .ws-item .ws-q { color: #000; } .ws-num { color: #000; }
+  .ws-blank { display: inline-block; min-width: 3.4em; border-bottom: 1px solid #999; }
+  .ws-a { color: #666; font-size: 8.5pt; }
+  .ws-citem { break-inside: avoid; }
+  .ws-cinstr { font-size: 9pt; color: #555; margin-bottom: 4px; }
+  .ws-cchords { display: flex; flex-wrap: wrap; gap: 8pt 24pt; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .ws-cchord { text-align: center; }
+  .ws-csym { font-weight: 700; font-size: 10.5pt; }
+  .ws-cblank { height: 1.25em; border-bottom: 1px solid #999; margin: 3px 0; min-width: 3em; }
+  @media print {
+    html, body { background: #fff; }
+    @page { size: 8.5in 11in; margin: 0; }
+    .page { margin: 0; box-shadow: none; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+  }`;
 
-  let html = `<div class="ws-title">Chord Practice — ${modeLabel} worksheet</div>`;
-  html += `<div class="ws-subtitle">${count} questions · answers shown small under each · ${APP_VERSION}</div>`;
-
-  if (mode === 'changes') {
-    html += '<div class="ws-grid changes">';
-    for (let i = 0; i < count; i++) {
-      const r = buildChangesRound();
-      html += `<div class="ws-citem"><div class="ws-cinstr">${i + 1}. ${changesInstructionText(r)}</div><div class="ws-cchords">`;
-      r.chords.forEach((c, j) => {
-        html += `<div class="ws-cchord"><div class="ws-csym">${c.symbol}</div><div class="ws-cblank"></div><div class="ws-a">${r.targets[j].display}</div></div>`;
-      });
-      html += '</div></div>';
+// The pagination script that runs inside the new tab.
+const WORKSHEET_FILL_JS = `
+  var root = document.getElementById('sheet');
+  var idx = 0, n = 0;
+  for (var p = 0; p < PAGES && idx < ITEMS.length; p++) {
+    var page = document.createElement('div');
+    page.className = 'page';
+    if (p === 0) page.innerHTML = '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>';
+    var grid = document.createElement('div');
+    grid.className = GRID_CLASS;
+    page.appendChild(grid);
+    root.appendChild(page);
+    while (idx < ITEMS.length) {
+      var tmp = document.createElement('div');
+      tmp.innerHTML = ITEMS[idx];
+      var el = tmp.firstElementChild;
+      grid.appendChild(el);
+      if (page.scrollHeight > page.clientHeight) {
+        grid.removeChild(el);
+        if (grid.children.length === 0) { grid.appendChild(el); idx++; n++; el.querySelector('.ws-num').textContent = n + '.'; }
+        break;
+      }
+      idx++; n++;
+      el.querySelector('.ws-num').textContent = n + '.';
     }
-    html += '</div>';
-  } else {
-    html += '<div class="ws-grid">';
-    worksheetTriChordItems(mode, count).forEach((it, i) => {
-      html += `<div class="ws-item"><div class="ws-q">${i + 1}. ${it.symbol} — ${it.ask} = <span class="ws-blank"></span></div><div class="ws-a">${it.answer}</div></div>`;
-    });
-    html += '</div>';
-  }
-  $('#worksheet-sheet').innerHTML = html;
+  }`;
+
+function openWorksheetInNewTab() {
+  const mode = worksheetMode || state.prefs.mode;
+  const pages = Math.max(1, Math.min(4, parseInt($('#ws-pages').value, 10) || 1));
+  const modeLabel = { triads: 'Triads', chords: 'Chords', changes: 'Changes' }[mode];
+  const perPage = mode === 'changes' ? 44 : 140; // generous upper bound; extras trimmed by the fill
+  const items = worksheetItemsHTML(mode, pages * perPage);
+  const title = `Chord Practice — ${modeLabel} worksheet`;
+  const subtitle = `answers shown small under each · ${APP_VERSION}`;
+  const config =
+    `var PAGES=${pages};var GRID_CLASS=${JSON.stringify(mode === 'changes' ? 'ws-grid changes' : 'ws-grid')};` +
+    `var TITLE=${JSON.stringify(title)};var SUBTITLE=${JSON.stringify(subtitle)};var ITEMS=${JSON.stringify(items)};`;
+  const doc =
+    `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>` +
+    `<style>${WORKSHEET_CSS}</style></head><body><div id="sheet"></div>` +
+    `<script>${config}${WORKSHEET_FILL_JS}<\/script></body></html>`;
+  const url = URL.createObjectURL(new Blob([doc], { type: 'text/html' }));
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
-$('#ws-mode').addEventListener('change', (e) => { worksheetMode = e.target.value; renderWorksheet(); });
-$('#ws-count').addEventListener('change', renderWorksheet);
-$('#ws-generate').addEventListener('click', renderWorksheet);
-$('#ws-print').addEventListener('click', () => window.print());
+$('#ws-mode').addEventListener('change', (e) => { worksheetMode = e.target.value; });
+$('#ws-open').addEventListener('click', openWorksheetInNewTab);
 
 /* ---- Init ---- */
 
