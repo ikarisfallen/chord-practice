@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -1352,6 +1352,7 @@ const WORKSHEET_CSS = `
 
 // The pagination script that runs inside the new tab.
 const WORKSHEET_FILL_JS = `
+  function setNum(el, k) { el.querySelector('.ws-num').textContent = k + '.'; }
   var root = document.getElementById('sheet');
   var idx = 0, n = 0;
   for (var p = 0; p < PAGES && idx < ITEMS.length; p++) {
@@ -1367,13 +1368,18 @@ const WORKSHEET_FILL_JS = `
       tmp.innerHTML = ITEMS[idx];
       var el = tmp.firstElementChild;
       grid.appendChild(el);
-      if (page.scrollHeight > page.clientHeight) {
-        grid.removeChild(el);
-        if (grid.children.length === 0) { grid.appendChild(el); idx++; n++; el.querySelector('.ws-num').textContent = n + '.'; }
-        break;
-      }
-      idx++; n++;
-      el.querySelector('.ws-num').textContent = n + '.';
+      if (page.scrollHeight > page.clientHeight) { grid.removeChild(el); break; }
+      setNum(el, ++n); idx++;
+    }
+    // Trim any residual overflow — items can wrap to different heights, so the
+    // last grid row may still be too tall after the greedy add.
+    while (page.scrollHeight > page.clientHeight && grid.children.length > 1) {
+      grid.removeChild(grid.lastElementChild); n--; idx--;
+    }
+    // Guarantee forward progress in the unlikely case nothing fit.
+    if (grid.children.length === 0 && idx < ITEMS.length) {
+      var t2 = document.createElement('div'); t2.innerHTML = ITEMS[idx];
+      grid.appendChild(t2.firstElementChild); setNum(t2.firstElementChild, ++n); idx++;
     }
   }`;
 
