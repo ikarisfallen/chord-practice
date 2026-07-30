@@ -48,12 +48,12 @@ The **Worksheet** tab builds a print-ready worksheet, entirely in the browser
 (offline, no PDF library). Pick a mode and a number of **pages**, then
 **Open in new tab** — it opens a self-contained page (a `blob:` document) styled as
 white **US-Letter (8.5×11″)** sheets with black question text and grey answers.
-That page's own script greedily fills each Letter sheet with numbered questions
-until the next one would overflow — letting the browser measure the fit — so every
-page packs full, then puts a matching **numbered answer key** on its own page(s) at
-the end. Print or Save as PDF from that tab (Ctrl/Cmd+P). Worksheets use your current
-settings for that mode (selected degrees, chord qualities, Changes sequences/line
-modes/1-3-5-vs-1-3-5-7).
+That page's own script greedily fills each Letter sheet — adding each numbered
+question together with its answer entry and letting the browser measure the fit —
+so **each page carries a full set of questions with their answers at the foot of the
+same page** (more pages = more questions, less wasted paper). Print or Save as PDF
+from that tab (Ctrl/Cmd+P). Worksheets use your current settings for that mode
+(selected degrees, chord qualities, Changes sequences/line modes/1-3-5-vs-1-3-5-7).
 
 ## How it works
 

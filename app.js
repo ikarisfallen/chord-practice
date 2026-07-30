@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v22';
+const APP_VERSION = 'v23';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -1344,8 +1344,11 @@ const WORKSHEET_CSS = `
   .ws-cchord { text-align: center; }
   .ws-csym { font-weight: 700; font-size: 10.5pt; }
   .ws-cblank { height: 1.25em; border-bottom: 1px solid #999; margin: 3px 0; min-width: 3em; }
-  .ws-key-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5pt 18pt;
-    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10pt; }
+  .ws-key-head { margin: 12pt 0 5pt; padding-top: 5pt; border-top: 1px solid #bbb;
+    font-family: ui-sans-serif, system-ui, Arial, sans-serif; font-weight: 700; font-size: 8.5pt;
+    color: #555; text-transform: uppercase; letter-spacing: .06em; }
+  .ws-key-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4pt 18pt;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9.5pt; }
   .ws-key-grid.changes { grid-template-columns: repeat(3, 1fr); }
   .ws-key { color: #333; break-inside: avoid; }
   .ws-key .ws-knum { color: #000; }
@@ -1356,67 +1359,47 @@ const WORKSHEET_CSS = `
     .page:last-child { page-break-after: auto; }
   }`;
 
-// The pagination script that runs inside the new tab. Greedily fills each Letter
-// page (the browser measures the fit). Question numbers are set BEFORE measuring
-// so the number's width is included (otherwise adding "1." … "174." afterward can
-// wrap a line and overflow). A matching numbered answer key follows on its own
-// page(s).
+// The pagination script that runs inside the new tab. Each page holds its own
+// questions (top) and their answers (bottom): a question and its answer entry are
+// added together and the whole page is measured, so both fit and paper isn't
+// wasted on a separate key. Numbers are set before measuring (their width matters)
+// and run continuously across pages.
 const WORKSHEET_FILL_JS = `
   var root = document.getElementById('sheet');
   function el(html) { var t = document.createElement('div'); t.innerHTML = html; return t.firstElementChild; }
-  function mkpage(titleHTML) { var p = document.createElement('div'); p.className = 'page'; if (titleHTML) p.innerHTML = titleHTML; return p; }
+  function mkgrid(cls) { var g = document.createElement('div'); g.className = cls; return g; }
+  function keyEntry(num, ans) { return '<div class="ws-key"><span class="ws-knum">' + num + '.</span> ' + ans + '</div>'; }
 
-  // Fill pre-built item strings (no per-item numbering) — used for the answer key.
-  function fillGeneric(items, gridClass, maxPages, titleFor) {
-    var idx = 0, pn = 0;
-    while (idx < items.length && (maxPages <= 0 || pn < maxPages)) {
-      var page = mkpage(titleFor(pn));
-      var grid = document.createElement('div'); grid.className = gridClass;
-      page.appendChild(grid); root.appendChild(page);
-      while (idx < items.length) {
-        var e = el(items[idx]); grid.appendChild(e);
-        if (page.scrollHeight > page.clientHeight) { grid.removeChild(e); break; }
-        idx++;
-      }
-      while (page.scrollHeight > page.clientHeight && grid.children.length > 1) { grid.removeChild(grid.lastElementChild); idx--; }
-      if (grid.children.length === 0 && idx < items.length) { grid.appendChild(el(items[idx])); idx++; }
-      pn++;
+  var idx = 0, pn = 0, n = 0;
+  while (idx < ITEMS.length && pn < PAGES) {
+    var page = document.createElement('div'); page.className = 'page';
+    if (pn === 0) page.innerHTML = '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>';
+    var qgrid = mkgrid(GRID_CLASS);
+    var keyHead = el('<div class="ws-key-head">Answers</div>');
+    var kgrid = mkgrid(KEY_GRID_CLASS);
+    page.appendChild(qgrid); page.appendChild(keyHead); page.appendChild(kgrid);
+    root.appendChild(page);
+
+    while (idx < ITEMS.length) {
+      var qe = el(ITEMS[idx]);
+      qe.querySelector('.ws-num').textContent = (n + 1) + '.';
+      qgrid.appendChild(qe);
+      var ke = el(keyEntry(n + 1, qe.getAttribute('data-ans')));
+      kgrid.appendChild(ke);
+      if (page.scrollHeight > page.clientHeight) { qgrid.removeChild(qe); kgrid.removeChild(ke); break; }
+      n++; idx++;
     }
-  }
-
-  // Fill the question pages, numbering each item as it is measured; returns the
-  // answers in placed order.
-  function fillQuestions() {
-    var answers = [], idx = 0, pn = 0;
-    while (idx < ITEMS.length && pn < PAGES) {
-      var page = mkpage(pn === 0 ? ('<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>') : '');
-      var grid = document.createElement('div'); grid.className = GRID_CLASS;
-      page.appendChild(grid); root.appendChild(page);
-      while (idx < ITEMS.length) {
-        var e = el(ITEMS[idx]);
-        e.querySelector('.ws-num').textContent = (answers.length + 1) + '.';
-        grid.appendChild(e);
-        if (page.scrollHeight > page.clientHeight) { grid.removeChild(e); break; }
-        answers.push(e.getAttribute('data-ans')); idx++;
-      }
-      while (page.scrollHeight > page.clientHeight && grid.children.length > 1) {
-        grid.removeChild(grid.lastElementChild); answers.pop(); idx--;
-      }
-      if (grid.children.length === 0 && idx < ITEMS.length) {
-        var e2 = el(ITEMS[idx]); e2.querySelector('.ws-num').textContent = (answers.length + 1) + '.';
-        grid.appendChild(e2); answers.push(e2.getAttribute('data-ans')); idx++;
-      }
-      pn++;
+    // Trim residual overflow (item heights vary with wrapping).
+    while (page.scrollHeight > page.clientHeight && qgrid.children.length > 1) {
+      qgrid.removeChild(qgrid.lastElementChild); kgrid.removeChild(kgrid.lastElementChild); n--; idx--;
     }
-    return answers;
-  }
-
-  var answers = fillQuestions();
-  if (answers.length) {
-    var keyItems = answers.map(function (a, i) {
-      return '<div class="ws-key"><span class="ws-knum">' + (i + 1) + '.</span> ' + a + '</div>';
-    });
-    fillGeneric(keyItems, KEY_GRID_CLASS, 0, function (p) { return p === 0 ? '<div class="ws-title">Answer key</div>' : ''; });
+    // Guarantee progress in the unlikely case nothing fit.
+    if (qgrid.children.length === 0 && idx < ITEMS.length) {
+      var qe2 = el(ITEMS[idx]); qe2.querySelector('.ws-num').textContent = (n + 1) + '.';
+      qgrid.appendChild(qe2); kgrid.appendChild(el(keyEntry(n + 1, qe2.getAttribute('data-ans')))); n++; idx++;
+    }
+    if (qgrid.children.length === 0) { page.removeChild(keyHead); page.removeChild(kgrid); }
+    pn++;
   }`;
 
 function openWorksheetInNewTab() {
@@ -1426,7 +1409,7 @@ function openWorksheetInNewTab() {
   const perPage = mode === 'changes' ? 44 : 140; // generous upper bound; extras trimmed by the fill
   const items = worksheetItemsHTML(mode, pages * perPage);
   const title = `Chord Practice — ${modeLabel} worksheet`;
-  const subtitle = `answer key at the end · ${APP_VERSION}`;
+  const subtitle = `answers at the foot of each page · ${APP_VERSION}`;
   const config =
     `var PAGES=${pages};var GRID_CLASS=${JSON.stringify(mode === 'changes' ? 'ws-grid changes' : 'ws-grid')};` +
     `var KEY_GRID_CLASS=${JSON.stringify(mode === 'changes' ? 'ws-key-grid changes' : 'ws-key-grid')};` +
