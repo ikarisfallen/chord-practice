@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v21';
+const APP_VERSION = 'v22';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -1356,59 +1356,68 @@ const WORKSHEET_CSS = `
     .page:last-child { page-break-after: auto; }
   }`;
 
-// The pagination script that runs inside the new tab. Greedily fills each
-// Letter page (browser measures the fit); numbers the questions in order, then
-// builds a matching numbered answer key on its own page(s).
+// The pagination script that runs inside the new tab. Greedily fills each Letter
+// page (the browser measures the fit). Question numbers are set BEFORE measuring
+// so the number's width is included (otherwise adding "1." … "174." afterward can
+// wrap a line and overflow). A matching numbered answer key follows on its own
+// page(s).
 const WORKSHEET_FILL_JS = `
   var root = document.getElementById('sheet');
-  function fillPages(items, gridClass, maxPages, titleFor) {
-    var idx = 0, pageNum = 0;
-    while (idx < items.length && (maxPages <= 0 || pageNum < maxPages)) {
-      var page = document.createElement('div'); page.className = 'page';
-      var t = titleFor(pageNum); if (t) page.innerHTML = t;
+  function el(html) { var t = document.createElement('div'); t.innerHTML = html; return t.firstElementChild; }
+  function mkpage(titleHTML) { var p = document.createElement('div'); p.className = 'page'; if (titleHTML) p.innerHTML = titleHTML; return p; }
+
+  // Fill pre-built item strings (no per-item numbering) — used for the answer key.
+  function fillGeneric(items, gridClass, maxPages, titleFor) {
+    var idx = 0, pn = 0;
+    while (idx < items.length && (maxPages <= 0 || pn < maxPages)) {
+      var page = mkpage(titleFor(pn));
       var grid = document.createElement('div'); grid.className = gridClass;
       page.appendChild(grid); root.appendChild(page);
       while (idx < items.length) {
-        var tmp = document.createElement('div'); tmp.innerHTML = items[idx];
-        var el = tmp.firstElementChild;
-        grid.appendChild(el);
-        if (page.scrollHeight > page.clientHeight) { grid.removeChild(el); break; }
+        var e = el(items[idx]); grid.appendChild(e);
+        if (page.scrollHeight > page.clientHeight) { grid.removeChild(e); break; }
         idx++;
       }
-      // Trim residual overflow — items can wrap to different heights.
+      while (page.scrollHeight > page.clientHeight && grid.children.length > 1) { grid.removeChild(grid.lastElementChild); idx--; }
+      if (grid.children.length === 0 && idx < items.length) { grid.appendChild(el(items[idx])); idx++; }
+      pn++;
+    }
+  }
+
+  // Fill the question pages, numbering each item as it is measured; returns the
+  // answers in placed order.
+  function fillQuestions() {
+    var answers = [], idx = 0, pn = 0;
+    while (idx < ITEMS.length && pn < PAGES) {
+      var page = mkpage(pn === 0 ? ('<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>') : '');
+      var grid = document.createElement('div'); grid.className = GRID_CLASS;
+      page.appendChild(grid); root.appendChild(page);
+      while (idx < ITEMS.length) {
+        var e = el(ITEMS[idx]);
+        e.querySelector('.ws-num').textContent = (answers.length + 1) + '.';
+        grid.appendChild(e);
+        if (page.scrollHeight > page.clientHeight) { grid.removeChild(e); break; }
+        answers.push(e.getAttribute('data-ans')); idx++;
+      }
       while (page.scrollHeight > page.clientHeight && grid.children.length > 1) {
-        grid.removeChild(grid.lastElementChild); idx--;
+        grid.removeChild(grid.lastElementChild); answers.pop(); idx--;
       }
-      if (grid.children.length === 0 && idx < items.length) { // guarantee progress
-        var t2 = document.createElement('div'); t2.innerHTML = items[idx];
-        grid.appendChild(t2.firstElementChild); idx++;
+      if (grid.children.length === 0 && idx < ITEMS.length) {
+        var e2 = el(ITEMS[idx]); e2.querySelector('.ws-num').textContent = (answers.length + 1) + '.';
+        grid.appendChild(e2); answers.push(e2.getAttribute('data-ans')); idx++;
       }
-      pageNum++;
+      pn++;
     }
+    return answers;
   }
-  function run() {
-    // Questions
-    fillPages(ITEMS, GRID_CLASS, PAGES, function (p) {
-      return p === 0 ? '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>' : '';
+
+  var answers = fillQuestions();
+  if (answers.length) {
+    var keyItems = answers.map(function (a, i) {
+      return '<div class="ws-key"><span class="ws-knum">' + (i + 1) + '.</span> ' + a + '</div>';
     });
-    // Number the placed questions in order and collect their answers.
-    var placed = root.querySelectorAll('.ws-item, .ws-citem');
-    var keyItems = [];
-    for (var i = 0; i < placed.length; i++) {
-      var num = i + 1;
-      placed[i].querySelector('.ws-num').textContent = num + '.';
-      keyItems.push('<div class="ws-key"><span class="ws-knum">' + num + '.</span> ' + placed[i].getAttribute('data-ans') + '</div>');
-    }
-    // Answer key on its own page(s).
-    if (keyItems.length) {
-      fillPages(keyItems, KEY_GRID_CLASS, 0, function (p) {
-        return p === 0 ? '<div class="ws-title">Answer key</div>' : '';
-      });
-    }
-  }
-  // Wait for fonts so measurements are stable (otherwise the greedy fill measures
-  // with fallback metrics and pages overflow once the real font loads).
-  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(run); } else { setTimeout(run, 60); }`;
+    fillGeneric(keyItems, KEY_GRID_CLASS, 0, function (p) { return p === 0 ? '<div class="ws-title">Answer key</div>' : ''; });
+  }`;
 
 function openWorksheetInNewTab() {
   const mode = worksheetMode || state.prefs.mode;
