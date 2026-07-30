@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -1386,24 +1386,29 @@ const WORKSHEET_FILL_JS = `
       pageNum++;
     }
   }
-  // Questions
-  fillPages(ITEMS, GRID_CLASS, PAGES, function (p) {
-    return p === 0 ? '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>' : '';
-  });
-  // Number the placed questions in order and collect their answers.
-  var placed = root.querySelectorAll('.ws-item, .ws-citem');
-  var keyItems = [];
-  for (var i = 0; i < placed.length; i++) {
-    var num = i + 1;
-    placed[i].querySelector('.ws-num').textContent = num + '.';
-    keyItems.push('<div class="ws-key"><span class="ws-knum">' + num + '.</span> ' + placed[i].getAttribute('data-ans') + '</div>');
-  }
-  // Answer key on its own page(s).
-  if (keyItems.length) {
-    fillPages(keyItems, KEY_GRID_CLASS, 0, function (p) {
-      return p === 0 ? '<div class="ws-title">Answer key</div>' : '';
+  function run() {
+    // Questions
+    fillPages(ITEMS, GRID_CLASS, PAGES, function (p) {
+      return p === 0 ? '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>' : '';
     });
-  }`;
+    // Number the placed questions in order and collect their answers.
+    var placed = root.querySelectorAll('.ws-item, .ws-citem');
+    var keyItems = [];
+    for (var i = 0; i < placed.length; i++) {
+      var num = i + 1;
+      placed[i].querySelector('.ws-num').textContent = num + '.';
+      keyItems.push('<div class="ws-key"><span class="ws-knum">' + num + '.</span> ' + placed[i].getAttribute('data-ans') + '</div>');
+    }
+    // Answer key on its own page(s).
+    if (keyItems.length) {
+      fillPages(keyItems, KEY_GRID_CLASS, 0, function (p) {
+        return p === 0 ? '<div class="ws-title">Answer key</div>' : '';
+      });
+    }
+  }
+  // Wait for fonts so measurements are stable (otherwise the greedy fill measures
+  // with fallback metrics and pages overflow once the real font loads).
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(run); } else { setTimeout(run, 60); }`;
 
 function openWorksheetInNewTab() {
   const mode = worksheetMode || state.prefs.mode;
