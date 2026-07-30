@@ -135,7 +135,7 @@ function parseAnswer(str) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -1300,9 +1300,10 @@ function worksheetItemsHTML(mode, count) {
   if (mode === 'changes') {
     for (let i = 0; i < count; i++) {
       const r = buildChangesRound();
-      let h = `<div class="ws-citem"><div class="ws-cinstr"><span class="ws-num"></span> ${changesInstructionText(r)}</div><div class="ws-cchords">`;
-      r.chords.forEach((c, j) => {
-        h += `<div class="ws-cchord"><div class="ws-csym">${c.symbol}</div><div class="ws-cblank"></div><div class="ws-a">${r.targets[j].display}</div></div>`;
+      const ans = r.targets.map((t) => t.display).join(' ');
+      let h = `<div class="ws-citem" data-ans="${ans}"><div class="ws-cinstr"><span class="ws-num"></span> ${changesInstructionText(r)}</div><div class="ws-cchords">`;
+      r.chords.forEach((c) => {
+        h += `<div class="ws-cchord"><div class="ws-csym">${c.symbol}</div><div class="ws-cblank"></div></div>`;
       });
       arr.push(h + '</div></div>');
     }
@@ -1319,7 +1320,7 @@ function worksheetItemsHTML(mode, count) {
     while (combos.length > 1 && prev && c.root === prev.root && c.quality === prev.quality && c.degree === prev.degree);
     prev = c;
     const answer = spell(c.root, c.quality, c.degree).display;
-    arr.push(`<div class="ws-item"><div class="ws-q"><span class="ws-num"></span> ${chordSymbol(c)} — ${ordinal(c.degree)} = <span class="ws-blank"></span></div><div class="ws-a">${answer}</div></div>`);
+    arr.push(`<div class="ws-item" data-ans="${answer}"><div class="ws-q"><span class="ws-num"></span> ${chordSymbol(c)} — ${ordinal(c.degree)} = <span class="ws-blank"></span></div></div>`);
   }
   return arr;
 }
@@ -1343,6 +1344,11 @@ const WORKSHEET_CSS = `
   .ws-cchord { text-align: center; }
   .ws-csym { font-weight: 700; font-size: 10.5pt; }
   .ws-cblank { height: 1.25em; border-bottom: 1px solid #999; margin: 3px 0; min-width: 3em; }
+  .ws-key-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5pt 18pt;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10pt; }
+  .ws-key-grid.changes { grid-template-columns: repeat(3, 1fr); }
+  .ws-key { color: #333; break-inside: avoid; }
+  .ws-key .ws-knum { color: #000; }
   @media print {
     html, body { background: #fff; }
     @page { size: 8.5in 11in; margin: 0; }
@@ -1350,37 +1356,53 @@ const WORKSHEET_CSS = `
     .page:last-child { page-break-after: auto; }
   }`;
 
-// The pagination script that runs inside the new tab.
+// The pagination script that runs inside the new tab. Greedily fills each
+// Letter page (browser measures the fit); numbers the questions in order, then
+// builds a matching numbered answer key on its own page(s).
 const WORKSHEET_FILL_JS = `
-  function setNum(el, k) { el.querySelector('.ws-num').textContent = k + '.'; }
   var root = document.getElementById('sheet');
-  var idx = 0, n = 0;
-  for (var p = 0; p < PAGES && idx < ITEMS.length; p++) {
-    var page = document.createElement('div');
-    page.className = 'page';
-    if (p === 0) page.innerHTML = '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>';
-    var grid = document.createElement('div');
-    grid.className = GRID_CLASS;
-    page.appendChild(grid);
-    root.appendChild(page);
-    while (idx < ITEMS.length) {
-      var tmp = document.createElement('div');
-      tmp.innerHTML = ITEMS[idx];
-      var el = tmp.firstElementChild;
-      grid.appendChild(el);
-      if (page.scrollHeight > page.clientHeight) { grid.removeChild(el); break; }
-      setNum(el, ++n); idx++;
+  function fillPages(items, gridClass, maxPages, titleFor) {
+    var idx = 0, pageNum = 0;
+    while (idx < items.length && (maxPages <= 0 || pageNum < maxPages)) {
+      var page = document.createElement('div'); page.className = 'page';
+      var t = titleFor(pageNum); if (t) page.innerHTML = t;
+      var grid = document.createElement('div'); grid.className = gridClass;
+      page.appendChild(grid); root.appendChild(page);
+      while (idx < items.length) {
+        var tmp = document.createElement('div'); tmp.innerHTML = items[idx];
+        var el = tmp.firstElementChild;
+        grid.appendChild(el);
+        if (page.scrollHeight > page.clientHeight) { grid.removeChild(el); break; }
+        idx++;
+      }
+      // Trim residual overflow — items can wrap to different heights.
+      while (page.scrollHeight > page.clientHeight && grid.children.length > 1) {
+        grid.removeChild(grid.lastElementChild); idx--;
+      }
+      if (grid.children.length === 0 && idx < items.length) { // guarantee progress
+        var t2 = document.createElement('div'); t2.innerHTML = items[idx];
+        grid.appendChild(t2.firstElementChild); idx++;
+      }
+      pageNum++;
     }
-    // Trim any residual overflow — items can wrap to different heights, so the
-    // last grid row may still be too tall after the greedy add.
-    while (page.scrollHeight > page.clientHeight && grid.children.length > 1) {
-      grid.removeChild(grid.lastElementChild); n--; idx--;
-    }
-    // Guarantee forward progress in the unlikely case nothing fit.
-    if (grid.children.length === 0 && idx < ITEMS.length) {
-      var t2 = document.createElement('div'); t2.innerHTML = ITEMS[idx];
-      grid.appendChild(t2.firstElementChild); setNum(t2.firstElementChild, ++n); idx++;
-    }
+  }
+  // Questions
+  fillPages(ITEMS, GRID_CLASS, PAGES, function (p) {
+    return p === 0 ? '<div class="ws-title">' + TITLE + '</div><div class="ws-subtitle">' + SUBTITLE + '</div>' : '';
+  });
+  // Number the placed questions in order and collect their answers.
+  var placed = root.querySelectorAll('.ws-item, .ws-citem');
+  var keyItems = [];
+  for (var i = 0; i < placed.length; i++) {
+    var num = i + 1;
+    placed[i].querySelector('.ws-num').textContent = num + '.';
+    keyItems.push('<div class="ws-key"><span class="ws-knum">' + num + '.</span> ' + placed[i].getAttribute('data-ans') + '</div>');
+  }
+  // Answer key on its own page(s).
+  if (keyItems.length) {
+    fillPages(keyItems, KEY_GRID_CLASS, 0, function (p) {
+      return p === 0 ? '<div class="ws-title">Answer key</div>' : '';
+    });
   }`;
 
 function openWorksheetInNewTab() {
@@ -1390,9 +1412,10 @@ function openWorksheetInNewTab() {
   const perPage = mode === 'changes' ? 44 : 140; // generous upper bound; extras trimmed by the fill
   const items = worksheetItemsHTML(mode, pages * perPage);
   const title = `Chord Practice — ${modeLabel} worksheet`;
-  const subtitle = `answers shown small under each · ${APP_VERSION}`;
+  const subtitle = `answer key at the end · ${APP_VERSION}`;
   const config =
     `var PAGES=${pages};var GRID_CLASS=${JSON.stringify(mode === 'changes' ? 'ws-grid changes' : 'ws-grid')};` +
+    `var KEY_GRID_CLASS=${JSON.stringify(mode === 'changes' ? 'ws-key-grid changes' : 'ws-key-grid')};` +
     `var TITLE=${JSON.stringify(title)};var SUBTITLE=${JSON.stringify(subtitle)};var ITEMS=${JSON.stringify(items)};`;
   const doc =
     `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>` +
