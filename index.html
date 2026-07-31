@@ -117,11 +117,16 @@
 
         <h3 class="settings-subhead">Line</h3>
         <p class="muted">How the line moves (one chosen at random each round). <strong>Ascending</strong> /
-          <strong>Descending</strong> start on a random 3rd/5th/7th and step to the nearest chord tone that way.
-          <strong>over over under</strong> / <strong>under under over</strong> instead end on a target note (a
-          3rd/5th/7th of the last chord): the first two chords take the nearest chord tone above (over) or below
+          <strong>Descending</strong> start on a chosen degree and step to the nearest chord tone that way.
+          <strong>over over under</strong> / <strong>under under over</strong> instead end on a target note (the
+          chosen degree of the last chord): the first two chords take the nearest chord tone above (over) or below
           (under) the target, the third takes the opposite, then you land on the target.</p>
         <div id="changes-linemode-checkboxes" class="checkbox-row"></div>
+
+        <h3 class="settings-subhead">Start / end degree</h3>
+        <p class="muted">Which degree can be the start (ascending/descending) or target (over/under) note? One is
+          picked at random each round. Default 1/3/5.</p>
+        <div id="changes-anchor-checkboxes" class="checkbox-row"></div>
 
         <h3 class="settings-subhead">Chord tones</h3>
         <label class="switch-row">

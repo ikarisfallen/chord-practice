@@ -217,7 +217,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -231,6 +231,7 @@ const DEFAULT_STATE = () => ({
     changesProgressions: ['random'],
     changesLineModes: ['ascending', 'descending'],
     changesInclude7th: true,
+    changesAnchors: [1, 3, 5],
     keys: ALL_KEY_IDS.slice(),
   },
   tick: 0,
@@ -532,7 +533,8 @@ const NOTATION_SCHEMES = [
 
 const rand = (n) => Math.floor(Math.random() * n);
 const pickRand = (arr) => arr[rand(arr.length)];
-const START_LABEL = { 1: 'root', 3: '3rd', 5: '5th', 7: '7th' };
+const START_LABEL = { 1: 'root', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th' };
+const ANCHOR_DEGREE_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
 
 let changesRound = null;
 
@@ -540,16 +542,21 @@ let changesRound = null;
 function changesToneDegrees() {
   return state.prefs.changesInclude7th === false ? [1, 3, 5] : [1, 3, 5, 7];
 }
-// The tones the line can START or TARGET on: the pool minus the root.
-function changesAnchorDegrees() {
-  return changesToneDegrees().filter((d) => d !== 1);
+// The degrees a round's line may START or END (target) on — user-chosen (any 1-7).
+function changesAnchors() {
+  const a = (state.prefs.changesAnchors || []).filter((d) => ANCHOR_DEGREE_OPTIONS.includes(d));
+  return a.length ? a : [1, 3, 5];
 }
 
 function chordToneList(chord) {
-  return changesToneDegrees().map((d) => {
-    const s = spell(chord.root, chord.quality, d);
-    return { degree: d, pc: s.pc, letter: s.letter, acc: s.acc, text: s.text, display: s.display };
-  });
+  return changesToneDegrees().map((d) => noteAtDegree(chord, d));
+}
+
+// The note at any scale degree (1-7) of a chord — used for start/target anchors,
+// which may be non-chord tones (e.g. the 2nd).
+function noteAtDegree(chord, degree) {
+  const s = spell(chord.root, chord.quality, degree);
+  return { degree, pc: s.pc, letter: s.letter, acc: s.acc, text: s.text, display: s.display };
 }
 
 // Nearest chord tone strictly in `direction` (+1 up / -1 down) from prevPitch.
@@ -570,8 +577,7 @@ function nearestInDirection(prevPitch, direction, tones) {
 }
 
 function generateChangesLine(chords, startDegree, direction) {
-  const firstTones = chordToneList(chords[0]);
-  const start = firstTones.find((t) => t.degree === startDegree) || firstTones[0];
+  const start = noteAtDegree(chords[0], startDegree);
   let prevPitch = 60 + start.pc; // seat the start note in a middle octave (60..71)
   const targets = [Object.assign({}, start, { pitch: prevPitch })];
   for (let i = 1; i < chords.length; i++) {
@@ -640,8 +646,7 @@ const LINE_MODE_ORDER = ['ascending', 'descending', 'overoverunder', 'underunder
 // End on `targetDegree` of the last chord; approach it per the mode's pattern.
 function buildTargetLine(chords, targetDegree, lineMode) {
   const last = chords[chords.length - 1];
-  const lastTones = chordToneList(last);
-  const targetTone = lastTones.find((t) => t.degree === targetDegree) || lastTones[0];
+  const targetTone = noteAtDegree(last, targetDegree);
   const targetPitch = 60 + targetTone.pc; // seat the target in a middle octave
   const pattern = LINE_MODES[lineMode].pattern;
   const targets = [];
@@ -674,11 +679,11 @@ function buildChangesRound() {
 
   const base = { type, chords, lineMode, idx: 0, results: [] }; // `type`/`lineMode` not shown as words beyond the pattern
   if (lineMode === 'ascending' || lineMode === 'descending') {
-    const startDegree = pickRand(changesAnchorDegrees()); // never start on the root
+    const startDegree = pickRand(changesAnchors());
     const direction = lineMode === 'ascending' ? 1 : -1;
     return Object.assign(base, { startDegree, direction, targets: generateChangesLine(chords, startDegree, direction) });
   }
-  const targetDegree = pickRand(changesAnchorDegrees());
+  const targetDegree = pickRand(changesAnchors());
   return Object.assign(base, { targetDegree, targets: buildTargetLine(chords, targetDegree, lineMode) });
 }
 
@@ -1102,6 +1107,7 @@ function renderSettings() {
   if (isChanges) {
     renderChangesProgressions();
     renderChangesLineModes();
+    renderChangesAnchors();
     $('#changes-7th-toggle').checked = state.prefs.changesInclude7th !== false;
     return;
   }
@@ -1182,6 +1188,31 @@ function toggleChangesLineMode(m, on) {
   else { list = list.filter(x => x !== m); }
   if (list.length === 0) list = [m]; // never allow zero
   state.prefs.changesLineModes = list;
+  save();
+  renderSettings();
+  if (state.prefs.mode === 'changes') nextQuestion();
+}
+
+function renderChangesAnchors() {
+  const enabled = changesAnchors();
+  const box = $('#changes-anchor-checkboxes');
+  box.innerHTML = '';
+  for (const d of ANCHOR_DEGREE_OPTIONS) {
+    const on = enabled.includes(d);
+    const label = document.createElement('label');
+    label.className = 'deg-check' + (on ? ' on' : '');
+    label.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''}><span>${ordinal(d)}</span>`;
+    label.querySelector('input').addEventListener('change', (e) => toggleChangesAnchor(d, e.target.checked));
+    box.appendChild(label);
+  }
+}
+
+function toggleChangesAnchor(d, on) {
+  let list = changesAnchors().slice();
+  if (on) { if (!list.includes(d)) list.push(d); } else { list = list.filter(x => x !== d); }
+  if (list.length === 0) list = [d]; // never allow zero
+  list.sort((a, b) => a - b);
+  state.prefs.changesAnchors = list;
   save();
   renderSettings();
   if (state.prefs.mode === 'changes') nextQuestion();
