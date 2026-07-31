@@ -130,12 +130,94 @@ function parseAnswer(str) {
 }
 
 /* =========================================================================
+ * KEYS — the 12 major and 12 minor keys exercises can be drawn from. All modes
+ * (and worksheets) draw only chords diatonic to the checked keys.
+ * ========================================================================= */
+
+const MAJOR_KEY_TONICS = [
+  { name: 'C', letter: 'C', pc: 0 }, { name: 'G', letter: 'G', pc: 7 }, { name: 'D', letter: 'D', pc: 2 },
+  { name: 'A', letter: 'A', pc: 9 }, { name: 'E', letter: 'E', pc: 4 }, { name: 'B', letter: 'B', pc: 11 },
+  { name: 'F♯', letter: 'F', pc: 6 }, { name: 'D♭', letter: 'D', pc: 1 }, { name: 'A♭', letter: 'A', pc: 8 },
+  { name: 'E♭', letter: 'E', pc: 3 }, { name: 'B♭', letter: 'B', pc: 10 }, { name: 'F', letter: 'F', pc: 5 },
+];
+const MINOR_KEY_TONICS = [
+  { name: 'A', letter: 'A', pc: 9 }, { name: 'E', letter: 'E', pc: 4 }, { name: 'B', letter: 'B', pc: 11 },
+  { name: 'F♯', letter: 'F', pc: 6 }, { name: 'C♯', letter: 'C', pc: 1 }, { name: 'G♯', letter: 'G', pc: 8 },
+  { name: 'E♭', letter: 'E', pc: 3 }, { name: 'B♭', letter: 'B', pc: 10 }, { name: 'F', letter: 'F', pc: 5 },
+  { name: 'C', letter: 'C', pc: 0 }, { name: 'G', letter: 'G', pc: 7 }, { name: 'D', letter: 'D', pc: 2 },
+];
+const KEYS = [].concat(
+  MAJOR_KEY_TONICS.map(t => ({ id: 'maj-' + t.name, mode: 'major', tonic: t, label: t.name })),
+  MINOR_KEY_TONICS.map(t => ({ id: 'min-' + t.name, mode: 'minor', tonic: t, label: t.name }))
+);
+const ALL_KEY_IDS = KEYS.map(k => k.id);
+
+// Diatonic chord qualities by scale degree (1..7).
+const SEVENTH_QUALITIES = {
+  major: ['maj7', 'min7', 'min7', 'maj7', 'dom7', 'min7', 'halfdim'],
+  minor: ['min7', 'halfdim', 'maj7', 'min7', 'min7', 'maj7', 'dom7'],
+};
+const TRIAD_QUALITIES = { // null = diminished (not drilled)
+  major: ['major', 'minor', 'minor', 'major', 'major', 'minor', null],
+  minor: ['minor', null, 'major', 'minor', 'minor', 'major', 'major'],
+};
+
+// A root spelling to avoid (enharmonic natural or double accidental); re-spell to
+// the plain natural, e.g. C♭ -> B, E♯ -> F.
+const NATURAL_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
+const NATURAL_LETTER = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
+function isAwkwardSpelling(note) {
+  return (NATURAL_PCS.has(note.pc) && note.acc !== 0) || Math.abs(note.acc) >= 2;
+}
+function cleanRoot(note) {
+  if (isAwkwardSpelling(note) && NATURAL_LETTER[note.pc]) {
+    const l = NATURAL_LETTER[note.pc];
+    return { name: l, letter: l, pc: note.pc };
+  }
+  return { name: note.display, letter: note.letter, pc: note.pc };
+}
+
+// Diatonic chords of a key: kind 'triad' (major/minor, skips diminished) or
+// 'seventh' (maj7/min7/dom7/halfdim). Roots spelled for the key, cleaned up.
+function diatonicChords(key, kind) {
+  const quals = kind === 'triad' ? TRIAD_QUALITIES[key.mode] : SEVENTH_QUALITIES[key.mode];
+  const out = [];
+  for (let d = 1; d <= 7; d++) {
+    const q = quals[d - 1];
+    if (!q) continue;
+    out.push({ root: cleanRoot(spell(key.tonic, key.mode, d)), quality: q });
+  }
+  return out;
+}
+
+function enabledKeys() {
+  const ids = new Set((state.prefs.keys && state.prefs.keys.length) ? state.prefs.keys : ALL_KEY_IDS);
+  return KEYS.filter(k => ids.has(k.id));
+}
+
+// Union of the diatonic chords of every enabled key (deduped by root+quality).
+function allowedChords(kind) {
+  const map = new Map();
+  for (const key of enabledKeys()) {
+    for (const ch of diatonicChords(key, kind)) map.set(ch.root.name + '|' + ch.quality, ch);
+  }
+  return [...map.values()];
+}
+
+// Difficulty tier for a root name (for the spaced-repetition ordering).
+function rootTier(rootName) {
+  const r = ROOT_BY_NAME[rootName];
+  if (r) return r.tier;
+  return 4 + (rootName.match(/[♯♭]/g) || []).length; // e.g. C♯ / G♯ from sharp keys
+}
+
+/* =========================================================================
  * STATE / PERSISTENCE
  * ========================================================================= */
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -149,6 +231,7 @@ const DEFAULT_STATE = () => ({
     changesProgressions: ['random'],
     changesLineModes: ['ascending', 'descending'],
     changesInclude7th: true,
+    keys: ALL_KEY_IDS.slice(),
   },
   tick: 0,
   items: {}, // key "root|quality|degree" -> item state
@@ -214,17 +297,15 @@ function currentDegrees() {
 // degrees, sorted easiest -> hardest. Index in this list = difficulty rank.
 function buildPool() {
   const degrees = currentDegrees();
-  const qualities = MODE_QUALITIES[state.prefs.mode];
+  const kind = state.prefs.mode === 'triads' ? 'triad' : 'seventh';
   const pool = [];
-  for (const root of ROOTS) {
-    for (const q of qualities) {
-      for (const d of degrees) {
-        pool.push({
-          key: itemKey(root.name, q, d),
-          root, quality: q, degree: d,
-          sort: [root.tier, QUALITIES[q].rank, DEGREE_PRIORITY.indexOf(d), ROOTS.indexOf(root)],
-        });
-      }
+  for (const ch of allowedChords(kind)) {
+    for (const d of degrees) {
+      pool.push({
+        key: itemKey(ch.root.name, ch.quality, d),
+        root: ch.root, quality: ch.quality, degree: d,
+        sort: [rootTier(ch.root.name), QUALITIES[ch.quality].rank, DEGREE_PRIORITY.indexOf(d), ch.root.pc],
+      });
     }
   }
   pool.sort((a, b) => {
@@ -514,47 +595,33 @@ const PROGRESSIONS = {
   random:    { label: 'Random' },
 };
 const PROGRESSION_ORDER = ['majoriiVI', 'minoriiVi', 'major6251', 'minor6251', 'IviiiV', 'p3625', 'random'];
-// Minor keys spelled without double accidentals (excludes D♭/G♭ minor).
-const MINOR_TONICS = ROOTS.filter(r => r.name !== 'D♭' && r.name !== 'G♭');
 
 function makeChord(root, quality, scheme) {
   return { root, quality, symbol: root.name + scheme[quality] };
 }
 
+// Four chords drawn from the diatonic 7th chords of the checked keys.
 function randomChords(scheme) {
+  const pool = allowedChords('seventh');
+  if (!pool.length) return [];
   const chords = [];
   for (let i = 0; i < 4; i++) {
-    let root, quality;
-    do {
-      root = pickRand(ROOTS);
-      quality = pickRand(CHORD_QUALITIES);
-    } while (i > 0 && root === chords[i - 1].root && quality === chords[i - 1].quality);
-    chords.push(makeChord(root, quality, scheme));
+    let ch;
+    do { ch = pickRand(pool); }
+    while (pool.length > 1 && i > 0 && ch.root.name === chords[i - 1].root.name && ch.quality === chords[i - 1].quality);
+    chords.push(makeChord(ch.root, ch.quality, scheme));
   }
   return chords;
 }
 
-// A root spelling to avoid: an enharmonic natural (C♭/F♭/E♯/B♯ — a white-key
-// pitch written with an accidental) or anything with a double accidental.
-const NATURAL_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
-function isAwkwardSpelling(note) {
-  return (NATURAL_PCS.has(note.pc) && note.acc !== 0) || Math.abs(note.acc) >= 2;
-}
-
-// Build a named progression in a random key, spelling each chord's root
-// correctly relative to that key (e.g. the ii in B major is C♯m7). Re-rolls the
-// key if any chord root would come out as C♭/F♭/E♯/B♯ (e.g. Major 2-5-1-4 in G♭
-// would make the IV a C♭maj7).
+// A named progression in a random enabled key of the matching mode (major
+// progressions from checked major keys, etc.), spelled for that key.
 function progressionChords(type, scheme) {
   const def = PROGRESSIONS[type];
-  const tonics = def.key === 'minor' ? MINOR_TONICS : ROOTS;
-  let notes;
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const tonic = pickRand(tonics);
-    notes = def.degrees.map(([deg, quality]) => ({ n: spell(tonic, def.key, deg), quality }));
-    if (!notes.some(({ n }) => isAwkwardSpelling(n))) break;
-  }
-  return notes.map(({ n, quality }) => makeChord({ name: n.display, letter: n.letter, pc: n.pc }, quality, scheme));
+  const keys = enabledKeys().filter(k => k.mode === def.key);
+  if (!keys.length) return null;
+  const key = pickRand(keys);
+  return def.degrees.map(([deg, quality]) => makeChord(cleanRoot(spell(key.tonic, def.key, deg)), quality, scheme));
 }
 
 // How the line moves through the chords. Ascending/Descending start on a
@@ -586,12 +653,20 @@ function buildTargetLine(chords, targetDegree, lineMode) {
   return targets;
 }
 
+// A progression type can be used only if it has an enabled key of its mode;
+// 'random' just needs any enabled key (so any allowed chords exist).
+function progressionUsable(t) {
+  if (t === 'random') return allowedChords('seventh').length > 0;
+  return enabledKeys().some(k => k.mode === PROGRESSIONS[t].key);
+}
+
 function buildChangesRound() {
   const knownProg = new Set(PROGRESSION_ORDER);
-  const enabledProg = (state.prefs.changesProgressions || []).filter((t) => knownProg.has(t));
+  const enabledProg = (state.prefs.changesProgressions || []).filter((t) => knownProg.has(t) && progressionUsable(t));
   const type = pickRand(enabledProg.length ? enabledProg : ['random']);
   const scheme = pickRand(NOTATION_SCHEMES);
-  const chords = type === 'random' ? randomChords(scheme) : progressionChords(type, scheme);
+  let chords = type === 'random' ? randomChords(scheme) : progressionChords(type, scheme);
+  if (!chords || !chords.length) chords = randomChords(scheme); // fallback if the chosen type had no key
 
   const knownModes = new Set(LINE_MODE_ORDER);
   const enabledModes = (state.prefs.changesLineModes || []).filter((m) => knownModes.has(m));
@@ -987,9 +1062,39 @@ document.querySelectorAll('.mode-btn').forEach(b =>
 
 /* ---- Settings ---- */
 
+function renderKeyCheckboxes() {
+  const enabled = new Set(state.prefs.keys && state.prefs.keys.length ? state.prefs.keys : ALL_KEY_IDS);
+  const render = (box, keys) => {
+    box.innerHTML = '';
+    for (const k of keys) {
+      const on = enabled.has(k.id);
+      const label = document.createElement('label');
+      label.className = 'deg-check' + (on ? ' on' : '');
+      label.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''}><span>${k.label}</span>`;
+      label.querySelector('input').addEventListener('change', (e) => toggleKey(k.id, e.target.checked));
+      box.appendChild(label);
+    }
+  };
+  render($('#keys-major-checkboxes'), KEYS.filter(k => k.mode === 'major'));
+  render($('#keys-minor-checkboxes'), KEYS.filter(k => k.mode === 'minor'));
+}
+
+function setKeys(ids) {
+  state.prefs.keys = ids.length ? ids : [ALL_KEY_IDS[0]]; // never empty
+  save();
+  renderSettings();
+  nextQuestion();
+}
+function toggleKey(id, on) {
+  let list = (state.prefs.keys && state.prefs.keys.length ? state.prefs.keys : ALL_KEY_IDS).slice();
+  if (on) { if (!list.includes(id)) list.push(id); } else { list = list.filter(x => x !== id); }
+  setKeys(list);
+}
+
 function renderSettings() {
   const mode = state.prefs.mode;
   const isChanges = mode === 'changes';
+  renderKeyCheckboxes();
   $('#degrees-card').classList.toggle('hidden', isChanges);
   $('#changes-card').classList.toggle('hidden', !isChanges);
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
@@ -1027,6 +1132,10 @@ function toggleDegree(d, on) {
   renderSettings();
   nextQuestion();
 }
+
+$('#keys-all').addEventListener('click', () => setKeys(ALL_KEY_IDS.slice()));
+$('#keys-major-only').addEventListener('click', () => setKeys(KEYS.filter(k => k.mode === 'major').map(k => k.id)));
+$('#keys-minor-only').addEventListener('click', () => setKeys(KEYS.filter(k => k.mode === 'minor').map(k => k.id)));
 
 function renderChangesProgressions() {
   const enabled = state.prefs.changesProgressions || ['random'];
@@ -1310,9 +1419,10 @@ function worksheetItemsHTML(mode, count) {
     return arr;
   }
   const degrees = mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees;
-  const qualities = MODE_QUALITIES[mode];
+  const kind = mode === 'triads' ? 'triad' : 'seventh';
   const combos = [];
-  for (const root of ROOTS) for (const q of qualities) for (const d of degrees) combos.push({ root, quality: q, degree: d });
+  for (const ch of allowedChords(kind)) for (const d of degrees) combos.push({ root: ch.root, quality: ch.quality, degree: d });
+  if (!combos.length) return arr;
   let prev = null;
   for (let i = 0; i < count; i++) {
     let c;

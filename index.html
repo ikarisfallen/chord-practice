@@ -82,6 +82,22 @@
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view hidden">
+      <div class="card" id="keys-card">
+        <h2>Keys</h2>
+        <p class="muted">Which keys should exercises (all modes, and worksheets) draw from? Only chords diatonic
+          to the checked keys are used — e.g. only C major gives triads C/Dm/Em/F/G/Am and 7ths
+          CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5. All checked by default.</p>
+        <div class="ws-control-row" style="margin-bottom:10px">
+          <button id="keys-all" type="button" class="ghost-btn">All</button>
+          <button id="keys-major-only" type="button" class="ghost-btn">Major only</button>
+          <button id="keys-minor-only" type="button" class="ghost-btn">Minor only</button>
+        </div>
+        <h3 class="settings-subhead">Major</h3>
+        <div id="keys-major-checkboxes" class="checkbox-row"></div>
+        <h3 class="settings-subhead">Minor</h3>
+        <div id="keys-minor-checkboxes" class="checkbox-row"></div>
+      </div>
+
       <div class="card" id="degrees-card">
         <h2>Degrees to test <small id="settings-mode-label"></small></h2>
         <p class="muted">Which scale degree(s) should I quiz you on for the current mode?

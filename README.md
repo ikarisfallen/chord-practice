@@ -62,6 +62,14 @@ from that tab (Ctrl/Cmd+P). Worksheets use your current settings for that mode
 - **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5)
 - **Changes** — voice-leading through four random 7th chords (see below)
 
+### Keys (Settings → Keys)
+Choose which of the 12 major and 12 minor keys exercises are drawn from (all
+checked by default). Every mode — and its worksheets — then uses only chords
+**diatonic to the checked keys**: e.g. only C major gives Triads C/Dm/Em/F/G/Am and
+Chords CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5, Changes progressions land in C, and random
+Changes draws from C's diatonic 7ths. Roots are spelled for the key (A major's ii is
+C♯m7); the rare enharmonic-natural (C♭/F♭/E♯/B♯) is re-spelled to its natural.
+
 ### Changes mode
 Each round presents a chord sequence in a **consistent** notation style
 (unlike Chords mode, which varies notation per chord — a Changes progression reads
