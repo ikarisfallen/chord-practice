@@ -58,8 +58,10 @@ from that tab (Ctrl/Cmd+P). Worksheets use your current settings for that mode
 ## How it works
 
 ### Modes & qualities
-- **Triads** — major, minor
-- **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5)
+- **Triads** — a random major or minor triad + a direction; enter its **3rd and 5th
+  in order** (ascending = 3rd then 5th, descending = 5th then 3rd), in two slots.
+  Always tests the 3rd & 5th (no degree setting).
+- **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5); name one degree
 - **Changes** — voice-leading through four random 7th chords (see below)
 
 ### Keys (Settings → Keys)

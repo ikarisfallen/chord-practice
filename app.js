@@ -217,7 +217,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v26';
+const APP_VERSION = 'v27';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -403,11 +403,16 @@ const el = {
   changesPrompt: $('#changes-prompt'),
   changesInstruction: $('#changes-instruction'),
   changesStrip: $('#changes-strip'),
+  triadPrompt: $('#triad-prompt'),
+  triadSymbol: $('#triad-symbol'),
+  triadDirection: $('#triad-direction'),
+  triadStrip: $('#triad-strip'),
   metaRow: $('.practice-meta'),
 };
 
 let current = null;         // current pool entry
 let phase = 'awaiting';     // 'awaiting' | 'feedback'
+let triadRound = null;      // current Triad-mode round
 
 /* ---- On-screen chromatic keyboard (A .. G#/Ab) ---- */
 
@@ -471,6 +476,9 @@ function noteKeyButton(k) {
 function activeChordForKeys() {
   if (state.prefs.mode === 'changes') {
     return changesRound ? changesRound.chords[changesRound.idx] : null;
+  }
+  if (state.prefs.mode === 'triads') {
+    return triadRound ? triadRound.chord : null;
   }
   return current;
 }
@@ -730,6 +738,7 @@ function startChangesQuestion() {
   newChangesRound();
   phase = 'awaiting';
   el.singlePrompt.classList.add('hidden');
+  el.triadPrompt.classList.add('hidden');
   el.changesPrompt.classList.remove('hidden');
   el.metaRow.classList.add('hidden');
   el.feedback.textContent = '';
@@ -914,6 +923,19 @@ function playChordAndNote(root, quality, degree) {
   playTone(ctx, melody, t, 3.0, 0.22);
 }
 
+// Triads: the chord low, then its two notes (3rd/5th) in the round's order.
+function playTriadRound(r) {
+  if (!state.prefs.sound) return;
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const t0 = ctx.currentTime + 0.05;
+  const base = chordRootMidi(r.chord.root);
+  playChordNotes(ctx, r.chord.root, r.chord.quality, t0, 2.6);
+  const beat = 1.1;
+  r.targets.forEach((t, i) => {
+    playTone(ctx, base + SCALES[r.chord.quality][t.degree - 1] + 12, t0 + i * beat, beat * 0.9 + 0.6, 0.22);
+  });
+}
+
 // Changes: the four chords + the four line notes, played as a progression.
 function playChangesLine(r) {
   if (!state.prefs.sound) return;
@@ -927,6 +949,117 @@ function playChangesLine(r) {
   });
 }
 
+/* =========================================================================
+ * TRIADS — a random major/minor triad + a direction; enter its 3rd and 5th in
+ * order (ascending = 3rd then 5th, descending = 5th then 3rd). Two slots, like
+ * a mini Changes round.
+ * ========================================================================= */
+
+function triadNote(chord, degree) {
+  const s = spell(chord.root, chord.quality, degree);
+  return { degree, pc: s.pc, letter: s.letter, acc: s.acc, text: s.text, display: s.display };
+}
+
+function buildTriadRound() {
+  const pool = allowedChords('triad');
+  const src = pool.length ? pickRand(pool) : { root: ROOT_BY_NAME['C'], quality: 'major' };
+  const chord = { root: src.root, quality: src.quality, symbol: chordSymbol(src) };
+  const direction = pickRand([1, -1]);
+  const third = triadNote(chord, 3), fifth = triadNote(chord, 5);
+  const targets = direction > 0 ? [third, fifth] : [fifth, third];
+  return { chord, direction, targets, idx: 0, results: [] };
+}
+
+function renderTriadPrompt() {
+  const r = triadRound;
+  el.triadSymbol.textContent = r.chord.symbol;
+  const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
+  const order = r.direction > 0 ? '3rd then 5th' : '5th then 3rd';
+  el.triadDirection.innerHTML = `<strong>${dir}</strong> — enter the <strong>${order}</strong>`;
+  el.triadStrip.innerHTML = '';
+  r.targets.forEach((t, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'changes-cell' + (i === r.idx ? ' current' : '');
+    let note;
+    if (i < r.idx) {
+      const res = r.results[i];
+      note = res.correct
+        ? `<div class="cc-note correct">${t.display}</div>`
+        : `<div class="cc-note wrong">${t.display}</div><div class="cc-typed">you: ${res.typed}</div>`;
+    } else {
+      note = `<div class="cc-note pending">•</div>`;
+    }
+    cell.innerHTML = note;
+    el.triadStrip.appendChild(cell);
+  });
+}
+
+function startTriadQuestion() {
+  triadRound = buildTriadRound();
+  phase = 'awaiting';
+  el.singlePrompt.classList.add('hidden');
+  el.changesPrompt.classList.add('hidden');
+  el.triadPrompt.classList.remove('hidden');
+  el.metaRow.classList.add('hidden');
+  el.feedback.textContent = '';
+  el.input.value = '';
+  el.input.className = '';
+  el.input.readOnly = false;
+  el.submit.textContent = 'Check';
+  el.noteKeys.classList.remove('disabled');
+  renderTriadPrompt();
+  updateKeySelection();
+  focusInput();
+}
+
+function submitTriadNote() {
+  const r = triadRound;
+  const parsed = parseAnswer(el.input.value);
+  if (!parsed) return;
+  if (parsed.invalid) {
+    el.feedback.innerHTML = `<div class="verdict bad">Couldn't read that. Try like "Eb", "f#", or "g".</div>`;
+    return;
+  }
+  const target = r.targets[r.idx];
+  const exact = parsed.letter === target.letter && parsed.acc === target.acc;
+  const correct = exact || (state.prefs.acceptEnharmonic && parsed.pc === target.pc);
+  r.results[r.idx] = { correct, typed: parsed.letter + accToText(parsed.acc, true) };
+  const it = getItem(r.chord.root.name, r.chord.quality, target.degree);
+  it.attempts += 1;
+  if (correct) it.correct += 1;
+  r.idx += 1;
+  el.input.value = '';
+  el.input.className = '';
+  if (r.idx < r.targets.length) {
+    renderTriadPrompt();
+    updateKeySelection();
+    focusInput();
+    save();
+  } else {
+    finishTriadRound();
+    save();
+  }
+}
+
+function finishTriadRound() {
+  const r = triadRound;
+  renderTriadPrompt();
+  const correctCount = r.results.filter((x) => x.correct).length;
+  const line = r.targets
+    .map((t, i) => `<span class="verdict ${r.results[i].correct ? 'good' : 'bad'}">${t.display}</span>`)
+    .join('  ');
+  el.feedback.innerHTML =
+    `<div class="verdict ${correctCount === r.targets.length ? 'good' : 'note'}">${correctCount}/${r.targets.length} correct</div>` +
+    `<div class="chord-tones">${r.chord.symbol}:  ${line}</div>` +
+    `<div class="next-hint">Press Enter for the next chord</div>`;
+  el.input.readOnly = true;
+  el.submit.textContent = 'Next ↵';
+  el.noteKeys.classList.add('disabled');
+  phase = 'feedback';
+  focusInput();
+  playTriadRound(r);
+}
+
 function chordName(entry) {
   return `${entry.root.name} ${QUALITIES[entry.quality].label}`;
 }
@@ -938,10 +1071,11 @@ function chordTonesText(entry) {
 }
 
 function nextQuestion() {
-  if (state.prefs.mode === 'changes') {
+  if (state.prefs.mode === 'changes' || state.prefs.mode === 'triads') {
     el.practiceCard.classList.remove('hidden');
     el.emptyPool.classList.add('hidden');
-    startChangesQuestion();
+    if (state.prefs.mode === 'changes') startChangesQuestion();
+    else startTriadQuestion();
     return;
   }
 
@@ -949,6 +1083,7 @@ function nextQuestion() {
   phase = 'awaiting';
   el.singlePrompt.classList.remove('hidden');
   el.changesPrompt.classList.add('hidden');
+  el.triadPrompt.classList.add('hidden');
   el.metaRow.classList.remove('hidden');
   el.feedback.textContent = '';
   el.input.value = '';
@@ -1029,6 +1164,7 @@ el.form.addEventListener('submit', (e) => {
   e.preventDefault();
   if (phase !== 'awaiting') { nextQuestion(); return; }
   if (state.prefs.mode === 'changes') submitChangesNote();
+  else if (state.prefs.mode === 'triads') submitTriadNote();
   else submitAnswer();
 });
 
@@ -1098,19 +1234,20 @@ function toggleKey(id, on) {
 
 function renderSettings() {
   const mode = state.prefs.mode;
-  const isChanges = mode === 'changes';
   renderKeyCheckboxes();
-  $('#degrees-card').classList.toggle('hidden', isChanges);
-  $('#changes-card').classList.toggle('hidden', !isChanges);
+  $('#degrees-card').classList.toggle('hidden', mode !== 'chords');
+  $('#changes-card').classList.toggle('hidden', mode !== 'changes');
+  $('#triad-card').classList.toggle('hidden', mode !== 'triads');
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
   $('#sound-toggle').checked = state.prefs.sound;
-  if (isChanges) {
+  if (mode === 'changes') {
     renderChangesProgressions();
     renderChangesLineModes();
     renderChangesAnchors();
     $('#changes-7th-toggle').checked = state.prefs.changesInclude7th !== false;
     return;
   }
+  if (mode !== 'chords') return; // triads: no degree checkboxes (always 3 & 5)
 
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
@@ -1449,10 +1586,26 @@ function worksheetItemsHTML(mode, count) {
     }
     return arr;
   }
-  const degrees = mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees;
-  const kind = mode === 'triads' ? 'triad' : 'seventh';
+  if (mode === 'triads') {
+    const pool = allowedChords('triad');
+    if (!pool.length) return arr;
+    let prev = null;
+    for (let i = 0; i < count; i++) {
+      let ch;
+      do { ch = pool[Math.floor(Math.random() * pool.length)]; }
+      while (pool.length > 1 && prev && ch.root.name === prev.root.name && ch.quality === prev.quality);
+      prev = ch;
+      const dir = pickRand([1, -1]);
+      const third = spell(ch.root, ch.quality, 3).display;
+      const fifth = spell(ch.root, ch.quality, 5).display;
+      const ans = dir > 0 ? `${third} ${fifth}` : `${fifth} ${third}`;
+      arr.push(`<div class="ws-item" data-ans="${ans}"><div class="ws-q"><span class="ws-num"></span> ${chordSymbol(ch)} ${dir > 0 ? '↑' : '↓'} <span class="ws-blank"></span> <span class="ws-blank"></span></div></div>`);
+    }
+    return arr;
+  }
+  const degrees = state.prefs.chordDegrees;
   const combos = [];
-  for (const ch of allowedChords(kind)) for (const d of degrees) combos.push({ root: ch.root, quality: ch.quality, degree: d });
+  for (const ch of allowedChords('seventh')) for (const d of degrees) combos.push({ root: ch.root, quality: ch.quality, degree: d });
   if (!combos.length) return arr;
   let prev = null;
   for (let i = 0; i < count; i++) {

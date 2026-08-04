@@ -46,6 +46,12 @@
           <div class="changes-strip" id="changes-strip"></div>
         </div>
 
+        <div id="triad-prompt" class="hidden">
+          <div class="prompt-root" id="triad-symbol">—</div>
+          <div class="changes-instruction" id="triad-direction"></div>
+          <div class="changes-strip" id="triad-strip"></div>
+        </div>
+
         <form id="answer-form" autocomplete="off">
           <input id="answer-input" type="text" inputmode="text"
                  placeholder="e.g. Eb, f#, g" aria-label="Your answer" spellcheck="false" />
@@ -96,6 +102,13 @@
         <div id="keys-major-checkboxes" class="checkbox-row"></div>
         <h3 class="settings-subhead">Minor</h3>
         <div id="keys-minor-checkboxes" class="checkbox-row"></div>
+      </div>
+
+      <div class="card hidden" id="triad-card">
+        <h2>Triads</h2>
+        <p class="muted">Each turn shows a random major or minor triad and a direction. Enter its 3rd and 5th
+          in that order — <strong>ascending</strong> = 3rd then 5th, <strong>descending</strong> = 5th then 3rd.
+          Which triads appear is set by <strong>Keys</strong> above.</p>
       </div>
 
       <div class="card" id="degrees-card">
