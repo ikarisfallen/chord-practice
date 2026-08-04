@@ -95,6 +95,7 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
 /* Changes mode */
 .changes-instruction { color: var(--muted); font-weight: 600; margin-bottom: 14px; }
 .changes-instruction strong { color: var(--accent); }
+.triad-arrow { color: var(--accent); }
 .changes-strip { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
 .changes-cell {
   flex: 1 1 0; min-width: 60px; max-width: 130px;

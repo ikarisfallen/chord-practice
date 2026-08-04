@@ -217,7 +217,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -972,10 +972,10 @@ function buildTriadRound() {
 
 function renderTriadPrompt() {
   const r = triadRound;
-  el.triadSymbol.textContent = r.chord.symbol;
-  const dir = r.direction > 0 ? 'ascending ↑' : 'descending ↓';
+  const arrow = r.direction > 0 ? '↑' : '↓';
+  el.triadSymbol.innerHTML = `${r.chord.symbol} <span class="triad-arrow">${arrow}</span>`;
   const order = r.direction > 0 ? '3rd then 5th' : '5th then 3rd';
-  el.triadDirection.innerHTML = `<strong>${dir}</strong> — enter the <strong>${order}</strong>`;
+  el.triadDirection.innerHTML = `enter the <strong>${order}</strong>`;
   el.triadStrip.innerHTML = '';
   r.targets.forEach((t, i) => {
     const cell = document.createElement('div');
