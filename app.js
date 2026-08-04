@@ -217,7 +217,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -1630,7 +1630,7 @@ const WORKSHEET_CSS = `
   .ws-grid.changes { grid-template-columns: 1fr 1fr; gap: 15pt 26pt; }
   .ws-item { font-size: 11pt; line-height: 1.3; break-inside: avoid; }
   .ws-item .ws-q { color: #000; } .ws-num { color: #000; }
-  .ws-blank { display: inline-block; min-width: 3.4em; border-bottom: 1px solid #999; }
+  .ws-blank { display: inline-block; min-width: 2.2em; border-bottom: 1px solid #999; }
   .ws-a { color: #666; font-size: 8.5pt; }
   .ws-citem { break-inside: avoid; }
   .ws-cinstr { font-size: 9pt; color: #555; margin-bottom: 4px; }
