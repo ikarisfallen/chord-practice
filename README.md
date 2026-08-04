@@ -58,16 +58,16 @@ from that tab (Ctrl/Cmd+P). Worksheets use your current settings for that mode
 ## How it works
 
 ### Modes & qualities
-- **Triads** — a random major or minor triad + a direction; enter its **3rd and 5th
-  in order** (ascending = 3rd then 5th, descending = 5th then 3rd), in two slots.
-  Always tests the 3rd & 5th (no degree setting).
+- **Triads** — a random major, minor, or diminished triad + a direction; enter its
+  **3rd and 5th in order** (ascending = 3rd then 5th, descending = 5th then 3rd), in
+  two slots. Always tests the 3rd & 5th (no degree setting).
 - **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5); name one degree
 - **Changes** — voice-leading through four random 7th chords (see below)
 
 ### Keys (Settings → Keys)
 Choose which of the 12 major and 12 minor keys exercises are drawn from (all
 checked by default). Every mode — and its worksheets — then uses only chords
-**diatonic to the checked keys**: e.g. only C major gives Triads C/Dm/Em/F/G/Am and
+**diatonic to the checked keys**: e.g. only C major gives Triads C/Dm/Em/F/G/Am/B° and
 Chords CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5, Changes progressions land in C, and random
 Changes draws from C's diatonic 7ths. Roots are spelled for the key (A major's ii is
 C♯m7); the rare enharmonic-natural (C♭/F♭/E♯/B♯) is re-spelled to its natural.

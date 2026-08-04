@@ -39,18 +39,20 @@ const SCALES = {
   dom7:    [0, 2, 4, 5, 7, 9, 10],  // Mixolydian
   min7:    [0, 2, 3, 5, 7, 8, 10],  // Aeolian
   halfdim: [0, 1, 3, 5, 6, 8, 10],  // Locrian
+  dim:     [0, 1, 3, 5, 6, 8, 10],  // Locrian (diminished triad: ♭3, ♭5)
 };
 
 const QUALITIES = {
   major:   { label: 'major',           mode: 'triads', rank: 0 },
   minor:   { label: 'minor',           mode: 'triads', rank: 1 },
+  dim:     { label: 'diminished',      mode: 'triads', rank: 2 },
   maj7:    { label: 'major 7',         mode: 'chords', rank: 0 },
   dom7:    { label: 'dominant 7',      mode: 'chords', rank: 1 },
   min7:    { label: 'minor 7',         mode: 'chords', rank: 2 },
   halfdim: { label: 'half-diminished', mode: 'chords', rank: 3 },
 };
 const MODE_QUALITIES = {
-  triads: ['major', 'minor'],
+  triads: ['major', 'minor', 'dim'],
   chords: ['maj7', 'dom7', 'min7', 'halfdim'],
 };
 // Chord tones (as scale degrees) that get spelled out in the feedback line.
@@ -62,6 +64,7 @@ const CHORD_TONES = { triads: [1, 3, 5], chords: [1, 3, 5, 7] };
 const NOTATIONS = {
   major:   ['maj', 'Maj', ' major', ' Major'],
   minor:   ['m', 'min', 'mi', ' minor'],
+  dim:     ['dim', '°', 'o', ' dim', ' diminished'],
   maj7:    ['maj7', 'Maj7', 'M7', '△7', 'ma7'],
   dom7:    ['7', 'dom7'],
   min7:    ['m7', 'min7', 'mi7', '-7'],
@@ -157,9 +160,9 @@ const SEVENTH_QUALITIES = {
   major: ['maj7', 'min7', 'min7', 'maj7', 'dom7', 'min7', 'halfdim'],
   minor: ['min7', 'halfdim', 'maj7', 'min7', 'min7', 'maj7', 'dom7'],
 };
-const TRIAD_QUALITIES = { // null = diminished (not drilled)
-  major: ['major', 'minor', 'minor', 'major', 'major', 'minor', null],
-  minor: ['minor', null, 'major', 'minor', 'minor', 'major', 'major'],
+const TRIAD_QUALITIES = {
+  major: ['major', 'minor', 'minor', 'major', 'major', 'minor', 'dim'],
+  minor: ['minor', 'dim', 'major', 'minor', 'minor', 'major', 'major'],
 };
 
 // A root spelling to avoid (enharmonic natural or double accidental); re-spell to
@@ -217,7 +220,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v31';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
