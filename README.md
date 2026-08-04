@@ -124,8 +124,10 @@ Piano samples: Salamander Grand Piano V3 by Alexander Holm, licensed CC-BY 3.0
 here for offline use). See `piano/CREDITS.txt`.
 
 ### Degrees
-You pick which scale degree(s) to be quizzed on (Settings). Triads offer 2–5,
-Chords offer 2–7. Default is just the **3rd**. The choice is remembered per mode.
+In **Chords** mode you pick which scale degree(s) to be quizzed on (Settings, 2–7);
+default is just the **3rd**, and the choice is remembered. **Triads** mode has no
+degree setting — it always tests the 3rd and 5th (see above). **Changes** picks its
+own start/end degrees (Settings → Changes).
 
 The prompt shows a chord symbol and asks for one degree (e.g. *"What is the
 3rd?"*). The symbol is drawn in a **randomly-varied notation** each time so you
