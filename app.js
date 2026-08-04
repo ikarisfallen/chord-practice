@@ -217,7 +217,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -923,16 +923,22 @@ function playChordAndNote(root, quality, degree) {
   playTone(ctx, melody, t, 3.0, 0.22);
 }
 
-// Triads: the chord low, then its two notes (3rd/5th) in the round's order.
+// Triads: the chord low, then a full arpeggio in the round's direction —
+// 1 3 5 1(octave up) ascending, or 1 5 3 1(octave down) descending.
 function playTriadRound(r) {
   if (!state.prefs.sound) return;
   const ctx = getAudioCtx(); if (!ctx) return;
   const t0 = ctx.currentTime + 0.05;
   const base = chordRootMidi(r.chord.root);
+  const third = SCALES[r.chord.quality][2], fifth = SCALES[r.chord.quality][4];
   playChordNotes(ctx, r.chord.root, r.chord.quality, t0, 2.6);
-  const beat = 1.1;
-  r.targets.forEach((t, i) => {
-    playTone(ctx, base + SCALES[r.chord.quality][t.degree - 1] + 12, t0 + i * beat, beat * 0.9 + 0.6, 0.22);
+  // Offsets relative to `base`; start on the root, walk the triad, end on the root an octave away.
+  const arp = r.direction > 0
+    ? [12, 12 + third, 12 + fifth, 24]   // ascending: 1 3 5 1↑
+    : [12, fifth, third, 0];             // descending: 1 5 3 1↓
+  const beat = 0.7;
+  arp.forEach((off, i) => {
+    playTone(ctx, base + off, t0 + i * beat, beat * 0.9 + 0.6, 0.22);
   });
 }
 
