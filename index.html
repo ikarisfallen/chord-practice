@@ -90,9 +90,10 @@
     <section id="view-settings" class="view hidden">
       <div class="card" id="keys-card">
         <h2>Keys</h2>
-        <p class="muted">Which keys should exercises (all modes, and worksheets) draw from? Only chords diatonic
-          to the checked keys are used — e.g. only C major gives triads C/Dm/Em/F/G/Am and 7ths
-          CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5. All checked by default.</p>
+        <p class="muted">Which keys should <strong>Chords</strong> and <strong>Changes</strong> exercises (and
+          their worksheets) draw from? Only chords diatonic to the checked keys are used — e.g. only C major
+          gives 7ths CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5. All checked by default. (Triads have their own root
+          selection — see the Triads settings.)</p>
         <div class="ws-control-row" style="margin-bottom:10px">
           <button id="keys-all" type="button" class="ghost-btn">All</button>
           <button id="keys-major-only" type="button" class="ghost-btn">Major only</button>
@@ -106,9 +107,21 @@
 
       <div class="card hidden" id="triad-card">
         <h2>Triads</h2>
-        <p class="muted">Each turn shows a random major, minor, or diminished triad and a direction. Enter its
-          3rd and 5th in that order — <strong>ascending</strong> = 3rd then 5th, <strong>descending</strong> =
-          5th then 3rd. Which triads appear is set by <strong>Keys</strong> above.</p>
+        <p class="muted">Pick the exact triads to drill — choose the roots for each quality independently.
+          Each turn shows a random checked triad and a direction; enter its 3rd and 5th in that order
+          (<strong>ascending</strong> = 3rd then 5th, <strong>descending</strong> = 5th then 3rd). These
+          roots are what the Triads practice and worksheet draw from (the <strong>Keys</strong> setting does
+          not apply to Triads).</p>
+        <div class="ws-control-row" style="margin-bottom:10px">
+          <button id="triad-all" type="button" class="ghost-btn">All</button>
+          <button id="triad-none" type="button" class="ghost-btn">None</button>
+        </div>
+        <h3 class="settings-subhead">Major</h3>
+        <div id="triad-major-checkboxes" class="checkbox-row"></div>
+        <h3 class="settings-subhead">Minor</h3>
+        <div id="triad-minor-checkboxes" class="checkbox-row"></div>
+        <h3 class="settings-subhead">Diminished</h3>
+        <div id="triad-dim-checkboxes" class="checkbox-row"></div>
       </div>
 
       <div class="card" id="degrees-card">

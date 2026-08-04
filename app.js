@@ -28,6 +28,9 @@ const ROOTS = [
   { name: 'G♭', letter: 'G', pc: 6,  tier: 6 },
 ];
 const ROOT_BY_NAME = Object.fromEntries(ROOTS.map(r => [r.name, r]));
+// Root names offered in the Triads settings (one per canonical spelling).
+const TRIAD_ROOT_NAMES = ROOTS.map(r => r.name);
+const TRIAD_QUALITY_ORDER = ['major', 'minor', 'dim'];
 
 // Semitones above the root for scale degrees 1..7. Each chord quality is tied
 // to its parent scale so that (a) the 3/5/7 come out as the real chord tones
@@ -220,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v31';
+const APP_VERSION = 'v32';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -228,6 +231,11 @@ const DEFAULT_STATE = () => ({
   prefs: {
     mode: 'triads',
     triadDegrees: [3],
+    triadRoots: {
+      major: TRIAD_ROOT_NAMES.slice(),
+      minor: TRIAD_ROOT_NAMES.slice(),
+      dim: TRIAD_ROOT_NAMES.slice(),
+    },
     chordDegrees: [3],
     acceptEnharmonic: true,
     sound: true,
@@ -969,8 +977,28 @@ function triadNote(chord, degree) {
   return { degree, pc: s.pc, letter: s.letter, acc: s.acc, text: s.text, display: s.display };
 }
 
+// The set of triads to drill, taken from the literal roots chosen per quality
+// in Settings (major / minor / diminished), rather than any key/scale.
+function normalizeTriadRoots() {
+  const tr = state.prefs.triadRoots || {};
+  const out = {};
+  for (const q of TRIAD_QUALITY_ORDER) out[q] = Array.isArray(tr[q]) ? tr[q].slice() : [];
+  return out;
+}
+function triadRootPool() {
+  const sel = normalizeTriadRoots();
+  const out = [];
+  for (const q of TRIAD_QUALITY_ORDER) {
+    for (const name of sel[q]) {
+      const root = ROOT_BY_NAME[name];
+      if (root) out.push({ root, quality: q });
+    }
+  }
+  return out;
+}
+
 function buildTriadRound() {
-  const pool = allowedChords('triad');
+  const pool = triadRootPool();
   const src = pool.length ? pickRand(pool) : { root: ROOT_BY_NAME['C'], quality: 'major' };
   const chord = { root: src.root, quality: src.quality, symbol: chordSymbol(src) };
   const direction = pickRand([1, -1]);
@@ -1244,11 +1272,18 @@ function toggleKey(id, on) {
 function renderSettings() {
   const mode = state.prefs.mode;
   renderKeyCheckboxes();
+  // Triads use their own literal-root selection, not the key/scale set, so the
+  // Keys card only applies to Chords and Changes.
+  $('#keys-card').classList.toggle('hidden', mode === 'triads');
   $('#degrees-card').classList.toggle('hidden', mode !== 'chords');
   $('#changes-card').classList.toggle('hidden', mode !== 'changes');
   $('#triad-card').classList.toggle('hidden', mode !== 'triads');
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
   $('#sound-toggle').checked = state.prefs.sound;
+  if (mode === 'triads') {
+    renderTriadRoots();
+    return; // triads: no degree checkboxes (always 3 & 5)
+  }
   if (mode === 'changes') {
     renderChangesProgressions();
     renderChangesLineModes();
@@ -1256,7 +1291,7 @@ function renderSettings() {
     $('#changes-7th-toggle').checked = state.prefs.changesInclude7th !== false;
     return;
   }
-  if (mode !== 'chords') return; // triads: no degree checkboxes (always 3 & 5)
+  if (mode !== 'chords') return;
 
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
@@ -1288,6 +1323,42 @@ function toggleDegree(d, on) {
 $('#keys-all').addEventListener('click', () => setKeys(ALL_KEY_IDS.slice()));
 $('#keys-major-only').addEventListener('click', () => setKeys(KEYS.filter(k => k.mode === 'major').map(k => k.id)));
 $('#keys-minor-only').addEventListener('click', () => setKeys(KEYS.filter(k => k.mode === 'minor').map(k => k.id)));
+
+const TRIAD_ROOT_BOX = { major: '#triad-major-checkboxes', minor: '#triad-minor-checkboxes', dim: '#triad-dim-checkboxes' };
+function renderTriadRoots() {
+  const sel = normalizeTriadRoots();
+  for (const q of TRIAD_QUALITY_ORDER) {
+    const on = new Set(sel[q]);
+    const box = $(TRIAD_ROOT_BOX[q]);
+    box.innerHTML = '';
+    for (const r of ROOTS) {
+      const checked = on.has(r.name);
+      const label = document.createElement('label');
+      label.className = 'deg-check' + (checked ? ' on' : '');
+      label.innerHTML = `<input type="checkbox" ${checked ? 'checked' : ''}><span>${r.name}</span>`;
+      label.querySelector('input').addEventListener('change', (e) => toggleTriadRoot(q, r.name, e.target.checked));
+      box.appendChild(label);
+    }
+  }
+}
+function setTriadRoots(tr) {
+  state.prefs.triadRoots = tr;
+  save();
+  renderSettings();
+  nextQuestion();
+}
+function toggleTriadRoot(quality, name, on) {
+  const tr = normalizeTriadRoots();
+  let list = tr[quality];
+  if (on) { if (!list.includes(name)) list.push(name); }
+  else { list = list.filter(x => x !== name); }
+  tr[quality] = list;
+  setTriadRoots(tr);
+}
+$('#triad-all').addEventListener('click', () => setTriadRoots({
+  major: TRIAD_ROOT_NAMES.slice(), minor: TRIAD_ROOT_NAMES.slice(), dim: TRIAD_ROOT_NAMES.slice(),
+}));
+$('#triad-none').addEventListener('click', () => setTriadRoots({ major: [], minor: [], dim: [] }));
 
 function renderChangesProgressions() {
   const enabled = state.prefs.changesProgressions || ['random'];
@@ -1596,7 +1667,7 @@ function worksheetItemsHTML(mode, count) {
     return arr;
   }
   if (mode === 'triads') {
-    const pool = allowedChords('triad');
+    const pool = triadRootPool();
     if (!pool.length) return arr;
     let prev = null;
     for (let i = 0; i < count; i++) {

@@ -60,17 +60,27 @@ from that tab (Ctrl/Cmd+P). Worksheets use your current settings for that mode
 ### Modes & qualities
 - **Triads** — a random major, minor, or diminished triad + a direction; enter its
   **3rd and 5th in order** (ascending = 3rd then 5th, descending = 5th then 3rd), in
-  two slots. Always tests the 3rd & 5th (no degree setting).
+  two slots. Always tests the 3rd & 5th (no degree setting). Which triads appear is
+  chosen directly by root per quality (see **Triads settings** below), not by key.
 - **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5); name one degree
 - **Changes** — voice-leading through four random 7th chords (see below)
 
+### Triads (Settings → Triads)
+Triads are drilled from **literal roots you choose per quality** — separate checkbox
+rows for **Major**, **Minor**, and **Diminished** covering all twelve roots (all
+checked by default; **All** / **None** buttons for each). The Triads practice screen
+and worksheet draw only from the checked (root, quality) combinations — e.g. check
+only C/F/G under Major and B under Diminished to drill exactly C, F, G, and B°. The
+**Keys** setting does *not* apply to Triads.
+
 ### Keys (Settings → Keys)
-Choose which of the 12 major and 12 minor keys exercises are drawn from (all
-checked by default). Every mode — and its worksheets — then uses only chords
-**diatonic to the checked keys**: e.g. only C major gives Triads C/Dm/Em/F/G/Am/B° and
-Chords CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5, Changes progressions land in C, and random
-Changes draws from C's diatonic 7ths. Roots are spelled for the key (A major's ii is
-C♯m7); the rare enharmonic-natural (C♭/F♭/E♯/B♯) is re-spelled to its natural.
+Choose which of the 12 major and 12 minor keys **Chords** and **Changes** exercises
+are drawn from (all checked by default). Those modes — and their worksheets — then use
+only chords **diatonic to the checked keys**: e.g. only C major gives Chords
+CMaj7/Dm7/Em7/FMaj7/G7/Am7/Bm7♭5, Changes progressions land in C, and random Changes
+draws from C's diatonic 7ths. Roots are spelled for the key (A major's ii is C♯m7);
+the rare enharmonic-natural (C♭/F♭/E♯/B♯) is re-spelled to its natural. (Triads use
+their own root selection above, not this setting.)
 
 ### Changes mode
 Each round presents a chord sequence in a **consistent** notation style
