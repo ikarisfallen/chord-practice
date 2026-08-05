@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v32';
+const APP_VERSION = 'v33';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -425,24 +425,25 @@ let current = null;         // current pool entry
 let phase = 'awaiting';     // 'awaiting' | 'feedback'
 let triadRound = null;      // current Triad-mode round
 
-/* ---- On-screen chromatic keyboard (A .. G#/Ab) ---- */
+/* ---- On-screen note input: a circle-of-fifths ring ---- */
 
-// 12 keys in chromatic order, laid out as two rows of 6. Enharmonic keys are a
-// single button; the actual spelling filled is chosen at tap time to match the
-// current chord's key signature (see accidentalPreference).
-const NOTE_KEYS = [
-  { pc: 9,  natural: 'A' },
-  { pc: 10, sharp: 'A#', flat: 'Bb' },
-  { pc: 11, natural: 'B' },
+// 12 segments clockwise from the top: C, G, D, A, E, B, F♯/G♭ (bottom),
+// D♭, A♭, E♭ (left), B♭, F. Enharmonic segments are a single button; the
+// actual spelling filled is chosen at tap time to match the current chord's
+// key signature (see accidentalPreference).
+const CIRCLE_OF_FIFTHS = [
   { pc: 0,  natural: 'C' },
-  { pc: 1,  sharp: 'C#', flat: 'Db' },
-  { pc: 2,  natural: 'D' },
-  { pc: 3,  sharp: 'D#', flat: 'Eb' },
-  { pc: 4,  natural: 'E' },
-  { pc: 5,  natural: 'F' },
-  { pc: 6,  sharp: 'F#', flat: 'Gb' },
   { pc: 7,  natural: 'G' },
+  { pc: 2,  natural: 'D' },
+  { pc: 9,  natural: 'A' },
+  { pc: 4,  natural: 'E' },
+  { pc: 11, natural: 'B' },
+  { pc: 6,  sharp: 'F#', flat: 'Gb' },
+  { pc: 1,  sharp: 'C#', flat: 'Db' },
   { pc: 8,  sharp: 'G#', flat: 'Ab' },
+  { pc: 3,  sharp: 'D#', flat: 'Eb' },
+  { pc: 10, sharp: 'A#', flat: 'Bb' },
+  { pc: 5,  natural: 'F' },
 ];
 
 const isDesktop = () => window.matchMedia('(pointer: fine)').matches;
@@ -465,21 +466,62 @@ function accidentalPreference(entry) {
 
 function toGlyph(note) { return note.replace('#', '♯').replace('b', '♭'); }
 
-function noteKeyButton(k) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.dataset.pc = k.pc;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+// Point on a circle at `clockDeg` (0 = top / 12 o'clock, increasing clockwise).
+function ringPoint(cx, cy, r, clockDeg) {
+  const t = clockDeg * Math.PI / 180;
+  return [cx + r * Math.sin(t), cy - r * Math.cos(t)];
+}
+// Path for a donut wedge (annular sector) spanning a0..a1 (clock degrees).
+function annularSector(cx, cy, rIn, rOut, a0, a1) {
+  const [x0o, y0o] = ringPoint(cx, cy, rOut, a0);
+  const [x1o, y1o] = ringPoint(cx, cy, rOut, a1);
+  const [x1i, y1i] = ringPoint(cx, cy, rIn, a1);
+  const [x0i, y0i] = ringPoint(cx, cy, rIn, a0);
+  const large = (a1 - a0) > 180 ? 1 : 0;
+  return `M ${x0o.toFixed(2)} ${y0o.toFixed(2)}`
+    + ` A ${rOut} ${rOut} 0 ${large} 1 ${x1o.toFixed(2)} ${y1o.toFixed(2)}`
+    + ` L ${x1i.toFixed(2)} ${y1i.toFixed(2)}`
+    + ` A ${rIn} ${rIn} 0 ${large} 0 ${x0i.toFixed(2)} ${y0i.toFixed(2)} Z`;
+}
+
+// One circle-of-fifths segment (a <g> holding the wedge + its label(s)).
+function noteKeySegment(k, i, geom) {
+  const { cx, cy, rIn, rOut } = geom;
+  const rMid = (rIn + rOut) / 2;
+  const center = i * 30;                 // segment 0 sits at the top
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.setAttribute('class', 'nkey ' + (k.natural ? 'nat' : 'acc'));
+  g.dataset.pc = k.pc;
+
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('class', 'wedge');
+  path.setAttribute('d', annularSector(cx, cy, rIn, rOut, center - 15, center + 15));
+  g.appendChild(path);
+
+  const [lx, ly] = ringPoint(cx, cy, rMid, center);
+  const text = document.createElementNS(SVG_NS, 'text');
+  text.setAttribute('x', lx.toFixed(2));
+  text.setAttribute('y', ly.toFixed(2));
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('class', 'lbl');
   if (k.natural) {
-    b.className = 'nkey white';
-    b.dataset.note = k.natural;
-    b.textContent = k.natural;
+    g.dataset.note = k.natural;
+    text.setAttribute('dominant-baseline', 'central');
+    text.textContent = k.natural;
   } else {
-    b.className = 'nkey blk';
-    b.dataset.sharp = k.sharp;
-    b.dataset.flat = k.flat;
-    b.textContent = toGlyph(k.sharp) + '/' + toGlyph(k.flat);
+    g.dataset.sharp = k.sharp;
+    g.dataset.flat = k.flat;
+    const flat = document.createElementNS(SVG_NS, 'tspan');
+    flat.setAttribute('x', lx.toFixed(2)); flat.setAttribute('dy', '-0.15em');
+    flat.textContent = toGlyph(k.flat);
+    const sharp = document.createElementNS(SVG_NS, 'tspan');
+    sharp.setAttribute('x', lx.toFixed(2)); sharp.setAttribute('dy', '1.15em');
+    sharp.setAttribute('class', 'enh'); sharp.textContent = toGlyph(k.sharp);
+    text.appendChild(flat); text.appendChild(sharp);
   }
-  return b;
+  g.appendChild(text);
+  return g;
 }
 
 // The chord whose key signature governs enharmonic key spelling right now:
@@ -502,15 +544,17 @@ function keyNote(btn) {
 }
 
 function buildNoteKeys() {
-  for (let r = 0; r < 2; r++) {
-    const row = document.createElement('div');
-    row.className = 'nkey-row';
-    for (const k of NOTE_KEYS.slice(r * 6, r * 6 + 6)) row.appendChild(noteKeyButton(k));
-    el.noteKeys.appendChild(row);
-  }
+  const geom = { cx: 100, cy: 100, rIn: 47, rOut: 97 };
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 200 200');
+  svg.setAttribute('class', 'cof');
+  svg.setAttribute('role', 'group');
+  svg.setAttribute('aria-label', 'Circle of fifths note input');
+  CIRCLE_OF_FIFTHS.forEach((k, i) => svg.appendChild(noteKeySegment(k, i, geom)));
+  el.noteKeys.appendChild(svg);
 
   // Keep input focus on desktop (so Enter still submits) by not letting the
-  // button steal it on mousedown; touch just fires click and fills.
+  // segment steal it on mousedown; touch just fires click and fills.
   el.noteKeys.addEventListener('mousedown', (e) => {
     if (e.target.closest('.nkey')) e.preventDefault();
   });

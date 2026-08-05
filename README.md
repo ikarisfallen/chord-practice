@@ -147,11 +147,13 @@ minor as `Cm`, `Cmin`, or `C-`. The feedback line reveals what it meant
 (`C△7 = C major 7:  C E G B`). Notation variants live in `NOTATIONS` in `app.js`.
 
 **Three ways to answer**, all of which fill the answer box: type on a computer
-keyboard, type on the phone's keyboard, or tap the on-screen chromatic keyboard
-(A → G♯/A♭). The on-screen black keys are split — sharp spelling on top, flat on
-the bottom — so you choose the exact note. On phones the soft keyboard doesn't pop
-up automatically (so the on-screen keys stay usable); tap the input box if you'd
-rather type.
+keyboard, type on the phone's keyboard, or tap the on-screen **circle of fifths** —
+a thick ring of twelve segments with C at the top, going clockwise by fifths
+(G, D, A, E, B, then F♯/G♭ at the bottom, D♭, A♭, E♭ on the left, B♭, F). Natural
+segments are light, accidental segments dark and labelled with both spellings
+(flat above, sharp below); tapping one fills whichever spelling fits the current
+chord's key signature. On phones the soft keyboard doesn't pop up automatically (so
+the ring stays usable); tap the input box if you'd rather type.
 
 Type the note — `Eb`, `e flat`, `E♭`, `f#`,
 `f sharp`, `g`, `bb` (B-flat), `b` (B-natural), `ax`/`a##` (double sharp) are all

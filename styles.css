@@ -132,22 +132,24 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
   padding: 0 20px; border-radius: 10px; cursor: pointer; font-size: 1rem;
 }
 
-/* On-screen keyboard: two rows of 6, full width */
-.note-keys { display: flex; flex-direction: column; gap: 7px; margin: 18px 0 4px; }
-.nkey-row { display: flex; gap: 7px; }
-.nkey {
-  flex: 1 1 0; min-width: 0; height: 56px;
-  border: 1px solid rgba(0,0,0,.15); border-radius: 10px; cursor: pointer;
-  font-family: var(--mono); font-weight: 700; padding: 0 2px; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  transition: transform .05s ease; overflow: hidden; white-space: nowrap;
+/* On-screen note input: a circle-of-fifths donut */
+.note-keys { display: flex; justify-content: center; margin: 20px 0 6px; }
+.cof { width: min(360px, 92vw); height: auto; aspect-ratio: 1 / 1; display: block; }
+.cof text { pointer-events: none; font-family: var(--mono); font-weight: 700; user-select: none; }
+.cof .wedge {
+  stroke: #8b96a6; stroke-width: 2; cursor: pointer;
+  transition: fill .08s ease;
 }
-.nkey:active { transform: translateY(1px); }
-.nkey.white { font-size: clamp(1rem, 4.5vw, 1.3rem); background: #f4f5f8; color: #1c2530; }
-.nkey.blk { font-size: clamp(.66rem, 3vw, .95rem); background: #263041; color: #eef2f8; border-color: #384457; }
-.nkey.white:hover { background: #e7ebf5; }
-.nkey.blk:hover { background: #33415a; }
-.nkey.sel { outline: 3px solid var(--accent); outline-offset: -2px; border-color: var(--accent); }
+.cof .nat .wedge { fill: #f4f5f8; }
+.cof .acc .wedge { fill: #263041; }
+.cof .nat:hover .wedge { fill: #e7ebf5; }
+.cof .acc:hover .wedge { fill: #33415a; }
+.cof .nat .lbl { fill: #1c2530; font-size: 13px; }
+.cof .acc .lbl { fill: #eef2f8; font-size: 11px; }
+.cof .acc .lbl .enh { font-size: 8.5px; fill: #aab6c6; }
+.cof .nkey.sel .wedge { fill: var(--accent); }
+.cof .nkey.sel .lbl { fill: #fff; }
+.cof .nkey.sel .lbl .enh { fill: #dbe4ff; }
 .note-keys.disabled { opacity: .45; pointer-events: none; }
 
 .feedback { min-height: 2.6em; margin: 16px 0 8px; font-size: 1rem; }
