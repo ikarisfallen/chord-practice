@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v35';
+const APP_VERSION = 'v36';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -2310,9 +2310,27 @@ function primeAudioOnce() {
 window.addEventListener('pointerdown', primeAudioOnce);
 window.addEventListener('keydown', primeAudioOnce);
 
-/* ---- Service worker: enables full offline use once installed ---- */
+/* ---- Service worker: full offline use + automatic updates ----
+ * updateViaCache:'none' means the browser always fetches sw.js from the network
+ * (never its own HTTP cache), so a new deploy is noticed on the next open/refocus
+ * instead of being stuck behind a stale cached worker. When the new worker takes
+ * control we reload once so the fresh assets are used — no manual cache clearing. */
 if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return; // first install: nothing to reload
+    reloaded = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW registration failed', e));
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then((reg) => {
+        reg.update();
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update();
+        });
+      })
+      .catch((e) => console.warn('SW registration failed', e));
   });
 }
