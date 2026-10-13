@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v36';
+const APP_VERSION = 'v37';
 
 const STORAGE_KEY = 'chordpractice.v1';
 

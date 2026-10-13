@@ -140,6 +140,9 @@ Degree spelling is TPC-based so enharmonics come out right for every quality
 (maj7/△7, m7, 7, 7♭9, ø7/m7♭5, °7, m(maj7), 6, sus, altered). Choose which degrees to
 test in **Settings → Degrees to test** (1–7). To refresh the song list, drop a new
 iRealPro `Songs.html` export in `song-practice/songs/` and re-run the parser.
+Repeats are **unrolled** so the chart shows every chord as many times as it's
+actually played — `{…}` section repeats, N1/N2 first/second endings, D.C. al Fine,
+and D.C./D.S. al Coda (e.g. Take the A Train expands to the full 32-bar AABA).
 
 ### Sound
 After you answer, the app plays the chord in a low register (left hand) and the
