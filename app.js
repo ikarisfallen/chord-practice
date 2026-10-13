@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v34';
+const APP_VERSION = 'v35';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -583,14 +583,31 @@ function buildNoteKeys() {
   svg.setAttribute('role', 'group');
   svg.setAttribute('aria-label', 'Circle of fifths note input');
   CIRCLE_OF_FIFTHS.forEach((k, i) => svg.appendChild(noteKeySegment(k, i, geom)));
+
+  // Check/submit button in the centre hole of the ring (works in every mode —
+  // the main way to submit on mobile, where the soft keyboard is suppressed).
+  const check = document.createElementNS(SVG_NS, 'g');
+  check.setAttribute('class', 'cof-check');
+  check.setAttribute('role', 'button');
+  check.setAttribute('aria-label', 'Check answer');
+  const cc = document.createElementNS(SVG_NS, 'circle');
+  cc.setAttribute('cx', geom.cx); cc.setAttribute('cy', geom.cy); cc.setAttribute('r', geom.rIn - 9);
+  const ct = document.createElementNS(SVG_NS, 'text');
+  ct.setAttribute('x', geom.cx); ct.setAttribute('y', geom.cy);
+  ct.setAttribute('text-anchor', 'middle'); ct.setAttribute('dominant-baseline', 'central');
+  ct.setAttribute('class', 'cof-check-lbl'); ct.textContent = 'Check';
+  check.appendChild(cc); check.appendChild(ct);
+  svg.appendChild(check);
+
   el.noteKeys.appendChild(svg);
 
-  // Keep input focus on desktop (so Enter still submits) by not letting the
-  // segment steal it on mousedown; touch just fires click and fills.
+  // Keep input focus on desktop (so Enter still submits) by not letting a
+  // control steal it on mousedown; touch just fires click.
   el.noteKeys.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.nkey')) e.preventDefault();
+    if (e.target.closest('.nkey, .cof-check')) e.preventDefault();
   });
   el.noteKeys.addEventListener('click', (e) => {
+    if (e.target.closest('.cof-check')) { checkAnswer(); focusActiveInput(); return; }
     const btn = e.target.closest('.nkey');
     if (!btn) return;
     const input = activeNoteInput();
@@ -600,6 +617,19 @@ function buildNoteKeys() {
     updateKeySelection();
     focusActiveInput();
   });
+}
+
+// Submit / advance from the current mode's input — shared by the form, the
+// Enter key, and the centre Check button on the ring.
+function checkAnswer() {
+  if (state.prefs.mode === 'songs') {
+    if (songState && !songState.done) submitSongCell(songState.idx);
+    return;
+  }
+  if (phase !== 'awaiting') { nextQuestion(); return; }
+  if (state.prefs.mode === 'changes') submitChangesNote();
+  else if (state.prefs.mode === 'triads') submitTriadNote();
+  else submitAnswer();
 }
 
 // Highlight the key matching whatever is currently in the active input (typed or
@@ -1643,11 +1673,7 @@ function submitAnswer() {
 
 el.form.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (state.prefs.mode === 'songs') return; // Songs uses per-chord inputs
-  if (phase !== 'awaiting') { nextQuestion(); return; }
-  if (state.prefs.mode === 'changes') submitChangesNote();
-  else if (state.prefs.mode === 'triads') submitTriadNote();
-  else submitAnswer();
+  checkAnswer();
 });
 
 el.skip.addEventListener('click', () => {

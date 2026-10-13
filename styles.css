@@ -150,7 +150,14 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
 .cof .nkey.sel .wedge { fill: var(--accent); }
 .cof .nkey.sel .lbl { fill: #fff; }
 .cof .nkey.sel .lbl .enh { fill: #dbe4ff; }
-.note-keys.disabled { opacity: .45; pointer-events: none; }
+/* Centre Check/submit button */
+.cof .cof-check { cursor: pointer; }
+.cof .cof-check circle { fill: var(--accent); transition: fill .08s ease; }
+.cof .cof-check:hover circle { filter: brightness(1.08); }
+.cof .cof-check:active circle { filter: brightness(.92); }
+.cof .cof-check-lbl { fill: #fff; font-family: var(--mono); font-weight: 700; font-size: 13px; }
+/* During feedback the segments dim, but the centre button stays live (acts as "next"). */
+.note-keys.disabled .nkey { opacity: .45; pointer-events: none; }
 
 /* ---- Songs mode ---- */
 .songs-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
