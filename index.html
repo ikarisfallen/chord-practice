@@ -22,6 +22,7 @@
       <button class="mode-btn" data-mode="triads" role="tab">Triads</button>
       <button class="mode-btn" data-mode="chords" role="tab">Chords</button>
       <button class="mode-btn" data-mode="changes" role="tab">Changes</button>
+      <button class="mode-btn" data-mode="songs" role="tab">Songs</button>
     </div>
     <nav class="view-nav">
       <button class="nav-btn" data-view="practice">Practice</button>
@@ -50,6 +51,20 @@
           <div class="prompt-root" id="triad-symbol">—</div>
           <div class="changes-instruction" id="triad-direction"></div>
           <div class="changes-strip" id="triad-strip"></div>
+        </div>
+
+        <div id="songs-prompt" class="hidden">
+          <div class="songs-head">
+            <button id="song-folder" type="button" class="icon-btn" aria-label="Choose a song" title="Choose a song">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2Z"/></svg>
+            </button>
+            <div class="songs-title-wrap">
+              <div class="songs-title" id="song-title">—</div>
+              <div class="songs-sub" id="song-sub"></div>
+            </div>
+            <button id="song-shuffle" type="button" class="ghost-btn" title="Pick new random degrees">Shuffle</button>
+          </div>
+          <div class="songs-grid" id="songs-grid"></div>
         </div>
 
         <form id="answer-form" autocomplete="off">
@@ -220,6 +235,17 @@
       </div>
     </section>
   </main>
+
+  <!-- SONG PICKER -->
+  <div id="song-picker" class="picker-overlay hidden" role="dialog" aria-modal="true" aria-label="Choose a song">
+    <div class="picker-panel">
+      <div class="picker-head">
+        <input id="song-search" type="text" placeholder="Search songs…" aria-label="Search songs" spellcheck="false" autocomplete="off">
+        <button id="song-picker-close" type="button" class="ghost-btn">Close</button>
+      </div>
+      <div id="song-list" class="song-list"></div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

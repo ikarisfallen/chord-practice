@@ -79,7 +79,7 @@ function chordSymbol(entry) {
   return entry.root.name + variants[Math.floor(Math.random() * variants.length)];
 }
 
-const DEGREE_OPTIONS = { triads: [2, 3, 4, 5], chords: [2, 3, 4, 5, 6, 7] };
+const DEGREE_OPTIONS = { triads: [2, 3, 4, 5], chords: [2, 3, 4, 5, 6, 7], songs: [1, 2, 3, 4, 5, 6, 7] };
 // Priority order used when ranking difficulty of multiple selected degrees.
 const DEGREE_PRIORITY = [3, 5, 7, 2, 4, 6];
 
@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v33';
+const APP_VERSION = 'v34';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -237,6 +237,8 @@ const DEFAULT_STATE = () => ({
       dim: TRIAD_ROOT_NAMES.slice(),
     },
     chordDegrees: [3],
+    songDegrees: [3],
+    songTitle: null,
     acceptEnharmonic: true,
     sound: true,
     changesProgressions: ['random'],
@@ -302,7 +304,9 @@ const LEARN_CAP = 8;      // max simultaneous "still learning" (level<2) items i
 const FRONTIER_BASE = 6;  // how many of the hardest-ordered items are unlocked at the start
 
 function currentDegrees() {
-  return state.prefs.mode === 'triads' ? state.prefs.triadDegrees : state.prefs.chordDegrees;
+  if (state.prefs.mode === 'triads') return state.prefs.triadDegrees;
+  if (state.prefs.mode === 'songs') return state.prefs.songDegrees;
+  return state.prefs.chordDegrees;
 }
 
 // All (root, quality, degree) combos allowed by the current mode + selected
@@ -418,6 +422,13 @@ const el = {
   triadSymbol: $('#triad-symbol'),
   triadDirection: $('#triad-direction'),
   triadStrip: $('#triad-strip'),
+  songsPrompt: $('#songs-prompt'),
+  songsGrid: $('#songs-grid'),
+  songTitle: $('#song-title'),
+  songSub: $('#song-sub'),
+  songPicker: $('#song-picker'),
+  songList: $('#song-list'),
+  songSearch: $('#song-search'),
   metaRow: $('.practice-meta'),
 };
 
@@ -536,11 +547,32 @@ function activeChordForKeys() {
   return current;
 }
 
+// The input the on-screen ring currently fills: the shared box normally, or the
+// current song cell in Songs mode. Returns null when no entry is accepted.
+function activeNoteInput() {
+  if (state.prefs.mode === 'songs') {
+    return (songState && !songState.done) ? songState.cells[songState.idx] : null;
+  }
+  return (phase === 'awaiting' && activeChordForKeys()) ? el.input : null;
+}
+function focusActiveInput() {
+  if (!isDesktop()) return;
+  const input = activeNoteInput();
+  if (input) input.focus();
+}
+
 // Resolve which note string a key fills (enharmonic keys pick by key signature).
 function keyNote(btn) {
   if (btn.dataset.note) return btn.dataset.note;
-  const ctx = activeChordForKeys();
-  return ctx && accidentalPreference(ctx) === 'flat' ? btn.dataset.flat : btn.dataset.sharp;
+  let pref = 'flat';
+  if (state.prefs.mode === 'songs') {
+    const ct = (songState && !songState.done) ? songState.chords[songState.idx].t : null;
+    if (ct) pref = songAccidentalPreference(ct);
+  } else {
+    const ctx = activeChordForKeys();
+    if (ctx) pref = accidentalPreference(ctx);
+  }
+  return pref === 'flat' ? btn.dataset.flat : btn.dataset.sharp;
 }
 
 function buildNoteKeys() {
@@ -560,21 +592,379 @@ function buildNoteKeys() {
   });
   el.noteKeys.addEventListener('click', (e) => {
     const btn = e.target.closest('.nkey');
-    if (!btn || phase !== 'awaiting' || !activeChordForKeys()) return;
-    el.input.value = keyNote(btn);
-    el.input.classList.remove('correct', 'wrong');
+    if (!btn) return;
+    const input = activeNoteInput();
+    if (!input) return;
+    input.value = keyNote(btn);
+    input.classList.remove('correct', 'wrong');
     updateKeySelection();
-    focusInput();
+    focusActiveInput();
   });
 }
 
-// Highlight the key matching whatever is currently in the input (typed or tapped),
-// compared by pitch class so either spelling lights up its enharmonic key.
+// Highlight the key matching whatever is currently in the active input (typed or
+// tapped), compared by pitch class so either spelling lights up its enharmonic key.
 function updateKeySelection() {
-  const parsed = parseAnswer(el.input.value);
+  const input = (state.prefs.mode === 'songs')
+    ? (songState && !songState.done ? songState.cells[songState.idx] : null)
+    : el.input;
+  const parsed = input ? parseAnswer(input.value) : null;
   const pc = parsed && !parsed.invalid ? parsed.pc : null;
   el.noteKeys.querySelectorAll('.nkey').forEach(b =>
     b.classList.toggle('sel', pc !== null && Number(b.dataset.pc) === pc));
+}
+
+/* =========================================================================
+ * SONGS MODE — practice chord-tone spelling over real tunes.
+ * Chords come from an iRealPro playlist (pre-parsed into songs.json). Each
+ * chord shows a randomly-chosen degree to name; get it right and the cursor
+ * jumps to the next chord. Chord-quality -> scale/spelling logic is ported
+ * from the companion song-practice app (TPC-based for correct enharmonics).
+ * ========================================================================= */
+
+// Parent scales as {s: semitone offset, t: tonal-pitch-class offset} per degree.
+const SONG_SCALES = {
+  dorian:   [{ s: 0, t: 0 }, { s: 2, t: 2 }, { s: 3, t: -3 }, { s: 5, t: -1 }, { s: 7, t: 1 }, { s: 9, t: 3 }, { s: 10, t: -2 }],
+  ionian:   [{ s: 0, t: 0 }, { s: 2, t: 2 }, { s: 4, t: 4 }, { s: 5, t: -1 }, { s: 7, t: 1 }, { s: 9, t: 3 }, { s: 11, t: 5 }],
+  mixo:     [{ s: 0, t: 0 }, { s: 2, t: 2 }, { s: 4, t: 4 }, { s: 5, t: -1 }, { s: 7, t: 1 }, { s: 9, t: 3 }, { s: 10, t: -2 }],
+  locrian:  [{ s: 0, t: 0 }, { s: 1, t: -5 }, { s: 3, t: -3 }, { s: 5, t: -1 }, { s: 6, t: -6 }, { s: 8, t: -4 }, { s: 10, t: -2 }],
+  melmin:   [{ s: 0, t: 0 }, { s: 2, t: 2 }, { s: 3, t: -3 }, { s: 5, t: -1 }, { s: 7, t: 1 }, { s: 9, t: 3 }, { s: 11, t: 5 }],
+  // 8-note symmetric scales — degree lookup goes through songDiatonicIndex.
+  wh_dim:   [{ s: 0, t: 0 }, { s: 2, t: 2 }, { s: 3, t: -3 }, { s: 5, t: -1 }, { s: 6, t: -6 }, { s: 8, t: -4 }, { s: 9, t: 3 }, { s: 11, t: 5 }],
+  hw_dim:   [{ s: 0, t: 0 }, { s: 1, t: -5 }, { s: 3, t: -3 }, { s: 4, t: 4 }, { s: 6, t: 6 }, { s: 7, t: 1 }, { s: 9, t: 3 }, { s: 10, t: -2 }],
+};
+const SONG_HW_REMAP = [0, 1, 3, 4, 5, 6, 7];
+
+// Map a diatonic degree index (0..6) to the actual index in an 8-note scale.
+function songDiatonicIndex(d, scale) {
+  if (!scale || scale.length !== 8) return d;
+  const sig = scale.map(x => x.s).join(',');
+  const oct = Math.floor(d / 7), within = ((d % 7) + 7) % 7;
+  if (sig === '0,1,3,4,6,7,9,10') return SONG_HW_REMAP[within] + oct * 8; // half-whole (7b9)
+  return within + oct * 8; // whole-half (dim7)
+}
+
+function songParseRoot(chordText) {
+  const L = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const T = { C: 14, D: 16, E: 18, F: 13, G: 15, A: 17, B: 19 };
+  const m = chordText.match(/^([A-Ga-g])([#♯])?([b♭])?/);
+  if (!m) return null;
+  const letter = m[1].toUpperCase();
+  let semi = L[letter], tpc = T[letter];
+  if (semi === undefined) return null;
+  if (m[2]) { semi++; tpc += 7; }
+  if (m[3]) { semi--; tpc -= 7; }
+  return { pc: ((semi % 12) + 12) % 12, tpc };
+}
+
+// Pick the parent scale for a chord quality (mirrors song-practice's exGetScale).
+function songGetScale(chordText) {
+  const q = chordText.replace(/^[A-Ga-g][#♯b♭]?/, '');
+  if (/[øØ]/.test(q)) return SONG_SCALES.locrian;
+  if (/m7[b♭]5|min7[b♭]5|mi7[b♭]5/i.test(q)) return SONG_SCALES.locrian;
+  if (/^h/i.test(q)) return SONG_SCALES.locrian;
+  if (/dim|°/i.test(q)) return SONG_SCALES.wh_dim;
+  if (/^o/i.test(q)) return SONG_SCALES.wh_dim;
+  if (/^(m(?!a)|min|mi|\-|−)/i.test(q) && /maj|ma|Δ|∆|\^/i.test(q)) return SONG_SCALES.melmin;
+  if (/maj|ma/i.test(q)) return SONG_SCALES.ionian;
+  if (/^M([0-9]|$)/.test(q)) return SONG_SCALES.ionian;
+  if (/[Δ∆\^]/.test(q)) return SONG_SCALES.ionian;
+  if (/^m|^-|^−/i.test(q)) return SONG_SCALES.dorian;
+  if (/^6/.test(q)) return SONG_SCALES.ionian;
+  if (/^[0-9]/.test(q) && /[b♭]9/.test(q)) return SONG_SCALES.hw_dim;
+  if (/^[0-9]/.test(q)) return SONG_SCALES.mixo;
+  if (/sus/i.test(q)) return SONG_SCALES.mixo;
+  if (/aug|\+/i.test(q)) return SONG_SCALES.ionian;
+  return SONG_SCALES.ionian;
+}
+
+// Collapse awkward enharmonics (double accidentals, Cb/Fb/E#/B#) to a plainer
+// spelling on the same pitch class — same rules as the rest of the app.
+function songNormEnh(tpc) {
+  const idx = (((tpc - 13) % 7) + 7) % 7;
+  const acc = (tpc - 13 - idx) / 7;
+  if (acc >= 2) tpc -= 12; else if (acc <= -2) tpc += 12;
+  if (tpc === 7) return 19;   // Cb -> B
+  if (tpc === 6) return 18;   // Fb -> E
+  if (tpc === 25) return 13;  // E# -> F
+  if (tpc === 26) return 14;  // B# -> C
+  return tpc;
+}
+function songTpcName(tpc) {
+  tpc = songNormEnh(tpc);
+  const letters = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+  const idx = (((tpc - 13) % 7) + 7) % 7;
+  const name = letters[idx];
+  const acc = (tpc - 13 - idx) / 7;
+  if (acc <= -2) return name + '♭♭';
+  if (acc === -1) return name + '♭';
+  if (acc === 1) return name + '♯';
+  if (acc >= 2) return name + '♯♯';
+  return name;
+}
+
+// The spelled note + pitch class of scale-degree `degree` (1..7) of a chord.
+function songDegreeNote(chordText, degree) {
+  const root = songParseRoot(chordText);
+  const scale = songGetScale(chordText);
+  if (!root) return { pc: 0, display: '?' };
+  const idx = songDiatonicIndex(degree - 1, scale);
+  const e = scale[idx];
+  return { pc: (((root.pc + e.s) % 12) + 12) % 12, display: songTpcName(root.tpc + e.t) };
+}
+
+// Does this chord spell its accidentals as sharps or flats? (for the ring)
+function songAccidentalPreference(chordText) {
+  const root = songParseRoot(chordText);
+  const scale = songGetScale(chordText);
+  if (!root) return 'flat';
+  let sharps = 0, flats = 0;
+  for (let d = 0; d < 7; d++) {
+    const name = songTpcName(root.tpc + scale[songDiatonicIndex(d, scale)].t);
+    if (name.includes('♯')) sharps++; else if (name.includes('♭')) flats++;
+  }
+  return sharps > flats ? 'sharp' : 'flat';
+}
+
+// ---- Songs data + state ----
+let SONGS = null;          // array of {title, composer, key, chords:[{t,d}]}
+let songsLoading = null;   // in-flight fetch promise
+let songState = null;      // { song, chords:[{t,d,degree,pc,answer}], idx, done, cells }
+
+function loadSongsData() {
+  if (SONGS) return Promise.resolve(SONGS);
+  if (!songsLoading) {
+    songsLoading = fetch('songs.json')
+      .then(r => r.json())
+      .then(data => { SONGS = data; return data; })
+      .catch(err => { console.warn('Could not load songs.json', err); SONGS = []; return SONGS; });
+  }
+  return songsLoading;
+}
+
+function findSong(title) {
+  if (!SONGS || !title) return null;
+  return SONGS.find(s => s.title === title) || null;
+}
+
+function songChordHasSeventh(rest) { return /(7|9|11|13)/.test(rest); }
+
+function loadSong(song) {
+  const degs = (state.prefs.songDegrees && state.prefs.songDegrees.length) ? state.prefs.songDegrees : [3];
+  const chords = [];        // flat, in reading order (grading/cursor order)
+  const bars = [];          // array of arrays of global chord indices (measures)
+  for (const bar of song.bars) {
+    const measure = [];
+    for (const c of bar) {
+      const degree = pickRand(degs);
+      const { pc, display } = songDegreeNote(c.t, degree);
+      measure.push(chords.length);
+      chords.push({ t: c.t, d: c.d, degree, pc, answer: display });
+    }
+    bars.push(measure);
+  }
+  songState = { song, chords, bars, idx: 0, done: false, cells: [] };
+  state.prefs.songTitle = song.title;
+  save();
+  renderSongChart();
+}
+
+const ORDINALS = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th' };
+
+function buildSongCell(i) {
+  const s = songState;
+  const ch = s.chords[i];
+  const cell = document.createElement('div');
+  cell.className = 'song-cell';
+  const sym = document.createElement('div');
+  sym.className = 'song-chord';
+  sym.textContent = ch.d;
+  const deg = document.createElement('div');
+  deg.className = 'song-deg';
+  deg.textContent = ORDINALS[ch.degree];
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'song-input';
+  input.setAttribute('inputmode', 'text');
+  input.setAttribute('spellcheck', 'false');
+  input.setAttribute('aria-label', `${ch.d}, ${ORDINALS[ch.degree]}`);
+  input.addEventListener('focus', () => { s.idx = i; updateKeySelection(); });
+  input.addEventListener('input', updateKeySelection);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitSongCell(i); }
+  });
+  if (ch.answered) {           // keep progress across re-renders
+    input.value = ch.answer;
+    input.readOnly = true;
+    cell.classList.add('done');
+  }
+  cell.appendChild(sym); cell.appendChild(deg); cell.appendChild(input);
+  s.cells[i] = input;
+  return cell;
+}
+
+function renderSongChart() {
+  const s = songState;
+  el.songTitle.textContent = s.song.title;
+  el.songSub.textContent = [s.song.composer, s.song.key && ('key of ' + s.song.key)].filter(Boolean).join('  ·  ');
+  el.songsGrid.innerHTML = '';
+  s.cells = [];
+  // One grid column per measure (the column count per row is set responsively
+  // in CSS — 4 / 8 / 12 / 16 measures by screen width). Each measure holds its
+  // one or more chords side by side, like a lead sheet.
+  s.bars.forEach(measureIdxs => {
+    const measure = document.createElement('div');
+    measure.className = 'song-measure' + (measureIdxs.length > 1 ? ' multi' : '');
+    measureIdxs.forEach(gi => measure.appendChild(buildSongCell(gi)));
+    el.songsGrid.appendChild(measure);
+  });
+  // Resume at the first unanswered chord (progress survives re-renders).
+  const firstOpen = s.chords.findIndex(c => !c.answered);
+  s.done = firstOpen < 0;
+  s.idx = s.done ? 0 : firstOpen;
+  highlightSongCell();
+  el.feedback.textContent = '';
+  focusActiveInput();
+  updateSongsKbdLayout();
+}
+
+function highlightSongCell() {
+  const s = songState;
+  s.cells.forEach((inp, i) => {
+    inp.closest('.song-cell').classList.toggle('current', i === s.idx && !s.done);
+  });
+  const cur = s.cells[s.idx];
+  if (cur) cur.closest('.song-cell').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function submitSongCell(i) {
+  const s = songState;
+  if (!s || s.done) return;
+  const ch = s.chords[i];
+  const input = s.cells[i];
+  const parsed = parseAnswer(input.value);
+  if (!parsed || parsed.invalid) { flashWrong(input); return; }
+  if (parsed.pc !== ch.pc) { flashWrong(input); return; }
+  // Correct.
+  ch.answered = true;
+  input.value = ch.answer;
+  input.readOnly = true;
+  input.classList.remove('wrong');
+  input.closest('.song-cell').classList.add('done');
+  playSongChord(ch.t, ch.degree);
+  // Advance to the next not-yet-answered cell.
+  let next = -1;
+  for (let j = i + 1; j < s.chords.length; j++) {
+    if (!s.cells[j].readOnly) { next = j; break; }
+  }
+  if (next < 0) for (let j = 0; j < i; j++) { if (!s.cells[j].readOnly) { next = j; break; } }
+  if (next < 0) {
+    s.done = true;
+    highlightSongCell();
+    el.feedback.innerHTML = '<span class="verdict good">Whole song done! 🎉</span>'
+      + '<div class="next-hint">Shuffle for new degrees, or pick another song with the folder.</div>';
+    return;
+  }
+  s.idx = next;
+  highlightSongCell();
+  focusActiveInput();
+}
+
+function flashWrong(input) {
+  input.classList.remove('wrong');
+  // reflow to restart the animation
+  void input.offsetWidth;
+  input.classList.add('wrong');
+}
+
+// Play the chord (low) and the asked degree an octave up — like the other modes.
+function playSongChord(chordText, degree) {
+  if (!state.prefs.sound) return;
+  const ctx = getAudioCtx(); if (!ctx) return;
+  const root = songParseRoot(chordText);
+  const scale = songGetScale(chordText);
+  if (!root) return;
+  const base = 48 + root.pc; // low (left-hand) register, C3 octave
+  const t = ctx.currentTime + 0.03;
+  const rest = chordText.replace(/^[A-Ga-g][#♯b♭]?/, '');
+  const tones = songChordHasSeventh(rest) ? [1, 3, 5, 7] : [1, 3, 5];
+  for (const cd of tones) {
+    const e = scale[songDiatonicIndex(cd - 1, scale)];
+    playTone(ctx, base + e.s, t, 2.6, 0.13);
+  }
+  const de = scale[songDiatonicIndex(degree - 1, scale)];
+  playTone(ctx, base + de.s + 12, t, 3.0, 0.22);
+}
+
+// Reserve space under the scrolling chart for the fixed bottom keyboard (Songs
+// mode only), and publish its height so cells scroll clear of it.
+function updateSongsKbdLayout() {
+  const main = document.querySelector('main');
+  if (state.prefs.mode !== 'songs') {
+    main.style.paddingBottom = '';
+    document.documentElement.style.removeProperty('--kbd-h');
+    return;
+  }
+  const h = el.noteKeys.offsetHeight || 0;
+  document.documentElement.style.setProperty('--kbd-h', h + 'px');
+  main.style.paddingBottom = (h + 20) + 'px';
+}
+window.addEventListener('resize', () => { if (state.prefs.mode === 'songs') updateSongsKbdLayout(); });
+
+async function startSongsView() {
+  el.singlePrompt.classList.add('hidden');
+  el.changesPrompt.classList.add('hidden');
+  el.triadPrompt.classList.add('hidden');
+  el.songsPrompt.classList.remove('hidden');
+  el.form.classList.add('hidden');
+  el.metaRow.classList.add('hidden');
+  el.emptyPool.classList.add('hidden');
+  el.practiceCard.classList.remove('hidden');
+  if (!SONGS) {
+    el.songTitle.textContent = 'Loading songs…';
+    el.songSub.textContent = '';
+    await loadSongsData();
+    if (state.prefs.mode !== 'songs') return; // user switched away while loading
+  }
+  if (!SONGS.length) { el.songTitle.textContent = 'No songs available'; return; }
+  if (songState) renderSongChart();
+  else loadSong(findSong(state.prefs.songTitle) || SONGS[0]);
+}
+
+function reshuffleSong() {
+  if (songState) loadSong(songState.song);
+}
+
+// ---- Song picker modal ----
+function openSongPicker() {
+  loadSongsData().then(() => {
+    el.songPicker.classList.remove('hidden');
+    el.songSearch.value = '';
+    renderSongList('');
+    if (isDesktop()) el.songSearch.focus();
+  });
+}
+function closeSongPicker() { el.songPicker.classList.add('hidden'); }
+function renderSongList(filter) {
+  const q = filter.trim().toLowerCase();
+  el.songList.innerHTML = '';
+  const list = (SONGS || []).filter(s =>
+    !q || s.title.toLowerCase().includes(q) || (s.composer || '').toLowerCase().includes(q));
+  for (const song of list) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'song-row' + (songState && songState.song.title === song.title ? ' active' : '');
+    row.innerHTML = `<span class="song-row-title">${song.title}</span>`
+      + `<span class="song-row-sub">${song.composer || ''}${song.key ? '  ·  ' + song.key : ''}</span>`;
+    row.addEventListener('click', () => { loadSong(song); closeSongPicker(); });
+    el.songList.appendChild(row);
+  }
+  if (!list.length) {
+    const empty = document.createElement('div');
+    empty.className = 'song-row-empty muted';
+    empty.textContent = 'No matching songs.';
+    el.songList.appendChild(empty);
+  }
 }
 
 /* =========================================================================
@@ -1152,6 +1542,16 @@ function chordTonesText(entry) {
 }
 
 function nextQuestion() {
+  if (state.prefs.mode === 'songs') {
+    el.noteKeys.classList.remove('disabled');
+    startSongsView();
+    return;
+  }
+  // Leaving Songs mode: restore the shared answer box and drop the reserved space.
+  el.songsPrompt.classList.add('hidden');
+  el.form.classList.remove('hidden');
+  updateSongsKbdLayout();
+
   if (state.prefs.mode === 'changes' || state.prefs.mode === 'triads') {
     el.practiceCard.classList.remove('hidden');
     el.emptyPool.classList.add('hidden');
@@ -1243,6 +1643,7 @@ function submitAnswer() {
 
 el.form.addEventListener('submit', (e) => {
   e.preventDefault();
+  if (state.prefs.mode === 'songs') return; // Songs uses per-chord inputs
   if (phase !== 'awaiting') { nextQuestion(); return; }
   if (state.prefs.mode === 'changes') submitChangesNote();
   else if (state.prefs.mode === 'triads') submitTriadNote();
@@ -1266,8 +1667,8 @@ function setView(view) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   if (view === 'stats') renderStats();
   if (view === 'settings') renderSettings();
-  if (view === 'practice') focusInput();
-  if (view === 'worksheet') $('#ws-mode').value = worksheetMode || state.prefs.mode;
+  if (view === 'practice') { if (state.prefs.mode === 'songs') focusActiveInput(); else focusInput(); }
+  if (view === 'worksheet') { const wm = worksheetMode || state.prefs.mode; $('#ws-mode').value = (wm === 'songs') ? 'triads' : wm; }
 }
 document.querySelectorAll('.nav-btn').forEach(b =>
   b.addEventListener('click', () => setView(b.dataset.view)));
@@ -1276,11 +1677,22 @@ function setMode(mode) {
   state.prefs.mode = mode;
   save();
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.body.classList.toggle('songs-mode', mode === 'songs');
   renderSettings();
   nextQuestion();
 }
 document.querySelectorAll('.mode-btn').forEach(b =>
   b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+/* ---- Songs mode controls ---- */
+$('#song-folder').addEventListener('click', openSongPicker);
+$('#song-shuffle').addEventListener('click', reshuffleSong);
+$('#song-picker-close').addEventListener('click', closeSongPicker);
+el.songPicker.addEventListener('click', (e) => { if (e.target === el.songPicker) closeSongPicker(); });
+el.songSearch.addEventListener('input', () => renderSongList(el.songSearch.value));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !el.songPicker.classList.contains('hidden')) closeSongPicker();
+});
 
 /* ---- Settings ---- */
 
@@ -1316,10 +1728,10 @@ function toggleKey(id, on) {
 function renderSettings() {
   const mode = state.prefs.mode;
   renderKeyCheckboxes();
-  // Triads use their own literal-root selection, not the key/scale set, so the
-  // Keys card only applies to Chords and Changes.
-  $('#keys-card').classList.toggle('hidden', mode === 'triads');
-  $('#degrees-card').classList.toggle('hidden', mode !== 'chords');
+  // Triads use their own literal-root selection and Songs use fixed tunes, so
+  // the Keys card only applies to Chords and Changes.
+  $('#keys-card').classList.toggle('hidden', mode === 'triads' || mode === 'songs');
+  $('#degrees-card').classList.toggle('hidden', !(mode === 'chords' || mode === 'songs'));
   $('#changes-card').classList.toggle('hidden', mode !== 'changes');
   $('#triad-card').classList.toggle('hidden', mode !== 'triads');
   $('#accept-enharmonic').checked = state.prefs.acceptEnharmonic;
@@ -1335,8 +1747,7 @@ function renderSettings() {
     $('#changes-7th-toggle').checked = state.prefs.changesInclude7th !== false;
     return;
   }
-  if (mode !== 'chords') return;
-
+  // chords + songs: the "Degrees to test" card.
   $('#settings-mode-label').textContent = `(${mode})`;
   const selected = currentDegrees();
   const box = $('#degree-checkboxes');
@@ -1352,7 +1763,8 @@ function renderSettings() {
 }
 
 function toggleDegree(d, on) {
-  const key = state.prefs.mode === 'triads' ? 'triadDegrees' : 'chordDegrees';
+  const key = state.prefs.mode === 'triads' ? 'triadDegrees'
+    : state.prefs.mode === 'songs' ? 'songDegrees' : 'chordDegrees';
   let list = state.prefs[key].slice();
   if (on) { if (!list.includes(d)) list.push(d); }
   else { list = list.filter(x => x !== d); }
@@ -1361,6 +1773,8 @@ function toggleDegree(d, on) {
   state.prefs[key] = list;
   save();
   renderSettings();
+  // Songs: re-roll the per-chord degrees for the current song with the new set.
+  if (state.prefs.mode === 'songs') { if (songState) loadSong(songState.song); return; }
   nextQuestion();
 }
 
@@ -1849,6 +2263,7 @@ $('#ws-open').addEventListener('click', openWorksheetInNewTab);
 function syncModeButtons() {
   document.querySelectorAll('.mode-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.mode === state.prefs.mode));
+  document.body.classList.toggle('songs-mode', state.prefs.mode === 'songs');
 }
 
 const versionEl = document.getElementById('app-version');

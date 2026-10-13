@@ -64,6 +64,7 @@ from that tab (Ctrl/Cmd+P). Worksheets use your current settings for that mode
   chosen directly by root per quality (see **Triads settings** below), not by key.
 - **Chords** — major 7, dominant 7, minor 7, half-diminished (m7♭5); name one degree
 - **Changes** — voice-leading through four random 7th chords (see below)
+- **Songs** — spell chord tones over a real tune's changes (see below)
 
 ### Triads (Settings → Triads)
 Triads are drilled from **literal roots you choose per quality** — separate checkbox
@@ -120,6 +121,25 @@ each round alongside the sequence:
   tone above (over) or below (under) the target, per the pattern, then land on the
   target. e.g. Am7 Dm7 G7 Cmaj7 targeting G → over-over-under = A A F G, and
   under-under-over = E F B G.
+
+### Songs mode
+Practice chord-tone spelling over the **actual changes of jazz standards**. The
+tune's chords are laid out like a lead sheet — **measures in rows of 4 / 8 / 12 / 16
+depending on the screen width** — with a text box under each chord. Each chord shows
+a scale degree to name (chosen at random from the degrees you enable; default the
+3rd). Type or tap the note; get it right and the cursor jumps to the next chord,
+playing that chord plus your note. The **folder** button opens a searchable song
+picker, **Shuffle** re-rolls the per-chord degrees, and the circle-of-fifths keyboard
+stays pinned to the bottom of the screen while the chart scrolls.
+
+The songs come from an **iRealPro playlist** (`Songs.html`) that is pre-parsed into
+`songs.json` at build time. The chord unscramble/tokenize/parse and the chord-quality
+→ parent-scale mapping are ported from the companion *song-practice* app (whose iReal
+reader is based on the MIT [`ireal-reader`](https://github.com/pianosnake/ireal-reader)).
+Degree spelling is TPC-based so enharmonics come out right for every quality
+(maj7/△7, m7, 7, 7♭9, ø7/m7♭5, °7, m(maj7), 6, sus, altered). Choose which degrees to
+test in **Settings → Degrees to test** (1–7). To refresh the song list, drop a new
+iRealPro `Songs.html` export in `song-practice/songs/` and re-run the parser.
 
 ### Sound
 After you answer, the app plays the chord in a low register (left hand) and the
