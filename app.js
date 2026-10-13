@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v37';
+const APP_VERSION = 'v38';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -810,7 +810,7 @@ function buildSongCell(i) {
   sym.className = 'song-chord';
   sym.textContent = ch.d;
   const deg = document.createElement('div');
-  deg.className = 'song-deg';
+  deg.className = 'song-deg deg-' + ch.degree;
   deg.textContent = ORDINALS[ch.degree];
   const input = document.createElement('input');
   input.type = 'text';
