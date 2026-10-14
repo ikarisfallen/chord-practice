@@ -220,6 +220,7 @@ body.songs-mode .song-cell { scroll-margin-bottom: calc(var(--kbd-h, 320px) + 14
   line-height: 1.15; min-height: 1.15em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .song-measure.multi .song-chord { font-size: clamp(.6rem, 2vw, .8rem); }
+.song-measure.busy .song-chord { font-size: clamp(.55rem, 1.7vw, .74rem); }
 .song-deg { text-align: center; font-size: .66rem; font-weight: 700; margin: 1px 0 4px; }
 .song-deg.deg-1 { color: var(--deg-1); } .song-deg.deg-2 { color: var(--deg-2); }
 .song-deg.deg-3 { color: var(--deg-3); } .song-deg.deg-4 { color: var(--deg-4); }

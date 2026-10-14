@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v38';
+const APP_VERSION = 'v39';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -843,8 +843,12 @@ function renderSongChart() {
   // in CSS — 4 / 8 / 12 / 16 measures by screen width). Each measure holds its
   // one or more chords side by side, like a lead sheet.
   s.bars.forEach(measureIdxs => {
+    const n = measureIdxs.length;
     const measure = document.createElement('div');
-    measure.className = 'song-measure' + (measureIdxs.length > 1 ? ' multi' : '');
+    measure.className = 'song-measure' + (n > 1 ? ' multi' : '') + (n >= 3 ? ' busy' : '');
+    // A busy bar (3–4 chords) spans an extra grid column so its chord names
+    // keep enough room to stay on one line instead of being clipped.
+    if (n >= 3) measure.style.gridColumn = 'span 2';
     measureIdxs.forEach(gi => measure.appendChild(buildSongCell(gi)));
     el.songsGrid.appendChild(measure);
   });
