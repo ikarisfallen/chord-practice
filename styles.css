@@ -177,6 +177,9 @@ main { padding: clamp(16px, 4vw, 40px); max-width: 860px; margin: 0 auto; }
 
 /* ---- Songs mode ---- */
 .songs-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.songs-head-btns { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.songs-head-btns .ghost-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+.songs-head-btns .ghost-btn svg { flex: 0 0 auto; }
 .songs-title-wrap { flex: 1 1 auto; min-width: 0; text-align: left; }
 .songs-title { font-weight: 800; font-size: 1.15rem; line-height: 1.2; }
 .songs-sub { color: var(--muted); font-size: .82rem; margin-top: 2px; }

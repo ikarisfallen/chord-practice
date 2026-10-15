@@ -223,7 +223,7 @@ function rootTier(rootName) {
 
 // Shown in the header so you can confirm an update landed. Keep in sync with
 // CACHE in sw.js — bump both on every deploy.
-const APP_VERSION = 'v39';
+const APP_VERSION = 'v40';
 
 const STORAGE_KEY = 'chordpractice.v1';
 
@@ -967,6 +967,19 @@ async function startSongsView() {
 
 function reshuffleSong() {
   if (songState) loadSong(songState.song);
+}
+
+// Load a random song from the list (different from the current one when possible).
+function loadRandomSong() {
+  loadSongsData().then(() => {
+    if (!SONGS || !SONGS.length) return;
+    let pick = pickRand(SONGS);
+    if (SONGS.length > 1 && songState) {
+      let guard = 0;
+      while (pick.title === songState.song.title && guard++ < 20) pick = pickRand(SONGS);
+    }
+    loadSong(pick);
+  });
 }
 
 // ---- Song picker modal ----
@@ -1717,6 +1730,7 @@ document.querySelectorAll('.mode-btn').forEach(b =>
 /* ---- Songs mode controls ---- */
 $('#song-folder').addEventListener('click', openSongPicker);
 $('#song-shuffle').addEventListener('click', reshuffleSong);
+$('#song-random').addEventListener('click', loadRandomSong);
 $('#song-picker-close').addEventListener('click', closeSongPicker);
 el.songPicker.addEventListener('click', (e) => { if (e.target === el.songPicker) closeSongPicker(); });
 el.songSearch.addEventListener('input', () => renderSongList(el.songSearch.value));
